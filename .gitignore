@@ -1,0 +1,17 @@
+.DS_Store
+node_modules/
+__pycache__/
+tmp/
+.env
+.env.*
+!.env.example
+.168-publisher/
+private/
+jobs/
+evidence/
+logs/
+*.log
+*.tmp
+
+dist/
+pro/

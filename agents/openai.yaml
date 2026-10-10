@@ -1,0 +1,15 @@
+interface:
+  display_name: "168 同步发布"
+  short_description: "Mac 视频与动态确认、逐平台配置并交回查看"
+  default_prompt: |-
+    $168-publisher
+    类型：视频
+    标题：
+    正文：
+    标签：
+    媒体：
+    封面：默认
+    平台：所有平台
+    Profile：默认
+policy:
+  allow_implicit_invocation: false

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 私密安全报告与社区投诉
+    url: mailto:me@guoshunfa.com
+    about: 漏洞和私人信息不要提交到公开 Issue。
