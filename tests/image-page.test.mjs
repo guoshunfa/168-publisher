@@ -39,7 +39,7 @@ function observed(platform,problem){
  const button={innerText:'发布',className:'',getBoundingClientRect:visible,disabled:false,getAttribute:()=>null};
  const nativeFile={__reactFiber$test:{memoizedProps:{userInfo:{uid:'account'}}}};
  const nodes=[{__vue__:{userStore:{finderUsername:'account'}}}];
- const document={querySelector:selector=>selector==='ytd-backstage-post-dialog-renderer'?{data:{imageButton:{buttonRenderer:{navigationEndpoint:{backstageImageUploadEndpoint:{channelId:problem==='recommendation'?undefined:'UCtest'}}}}}}:selector==='ytd-channel-name'?{innerText:'recommended creator'}:selector.includes('header-entry')?{href:'account'}:selector.includes('user-name')?{innerText:'account'}:null,querySelectorAll:selector=>selector==='*'?nodes:selector==='#publisher-image-files'?[nativeFile]:selector==='#publisher-image-body'?(problem==='ambiguous'?[editor,editor]:[editor]):selector==='#publisher-image-title'?(platform==='youtube'?[]:[title]):selector.startsWith('button,')?[button]:[]};
+ const document={querySelector:selector=>selector==='ytd-backstage-post-dialog-renderer'?{data:{imageButton:{buttonRenderer:{navigationEndpoint:{backstageImageUploadEndpoint:{channelId:problem==='recommendation'?undefined:'UCtest'}}}}}}:selector==='ytd-channel-name'?{innerText:'recommended creator'}:selector.includes('header-entry')?{href:'account'}:selector.includes('user-name')?{innerText:'account'}:null,querySelectorAll:selector=>selector==='*'?nodes:selector==='[data-168-image=files]'?[nativeFile]:selector==='[data-168-image=body]'?(problem==='ambiguous'?[editor,editor]:[editor]):selector==='[data-168-image=title]'?(platform==='youtube'?[]:[title]):selector.startsWith('button,')?[button]:[]};
  const guard={armed:true,fingerprint:'fingerprint',blockedAttempts:problem==='blocked'?[{}]:[],files:[{sha256:problem==='file'?'other':'first',size:20}],blobs:{},uploads:[{sha256:'first',size:20,status:problem==='failed'?500:200,urls:[url]}]};
  const expected={platform,account:problem==='account'?'other':platform==='youtube'?'UCtest':'account',fingerprint:'fingerprint',text:'Original body',title:platform==='youtube'?'':'Native title',assets:[asset]};
  return vm.runInNewContext(`(${observeImage.toString()})(expected)`,{expected,document,window:{__168_PUBLISHER_IMAGE__:guard},location:{hostname:{douyin:'creator.douyin.com',bilibili:'t.bilibili.com',wechat_channels:'channels.weixin.qq.com',youtube:'www.youtube.com'}[platform],pathname:'/channel/UCtest/posts'},getComputedStyle:()=>({visibility:'visible'})});
@@ -52,8 +52,8 @@ test('Native image verification requires ordered upload receipts, account, conte
 });
 
 test('Ambiguous image inputs never receive the upload target ID, including inside shadow roots',()=>{
- const editor={getBoundingClientRect:visible,id:'',getRootNode:()=>scope};
- const files=[1,2].map(()=>({accept:'image/*',multiple:true,id:''}));
+ const editor={getBoundingClientRect:visible,setAttribute(){},getRootNode:()=>scope};
+ const files=[1,2].map(()=>({accept:'image/*',multiple:true,setAttribute(){throw Error('Ambiguous input marked');}}));
  const scope={contains:()=>true};
  const shadow={querySelectorAll:selector=>selector==='*'?[]:selector.includes('contenteditable')?[editor]:selector.includes('type=file')?files:[]};
  const document={querySelectorAll:selector=>selector==='*'?[{shadowRoot:shadow}]:[]};
@@ -80,13 +80,15 @@ test('Upload proof hashes submitted bytes, keeps server errors and restores brow
 });
 
 
-test('Repeated control scans remove stale IDs when a second native editor appears',()=>{
+const markable=(id='')=>({id,marker:'',getBoundingClientRect:visible,setAttribute(_key,value){this.marker=value;},removeAttribute(){this.marker='';}});
+for(const platform of ['douyin','youtube'])test(platform+': repeated control scans preserve native IDs and remove ambiguous marks',()=>{
  const scope={contains:()=>true};
- const editors=[{id:'',getBoundingClientRect:visible,getRootNode:()=>scope}];
- const document={querySelectorAll:selector=>selector==='*'?[]:selector.startsWith('#publisher-image-body')?editors.filter(e=>e.id):selector.includes('contenteditable')?editors:[]};
+ const editors=[{...markable(platform==='youtube'?'contenteditable-root':''),getRootNode:()=>scope}];
+ const document={querySelectorAll:selector=>selector==='*'?[]:selector.startsWith('[data-168-image=body]')?editors.filter(e=>e.marker):selector.includes('contenteditable')?editors.filter(e=>platform!=='youtube'||e.id==='contenteditable-root'):[]};
  const context={document,getComputedStyle:()=>({visibility:'visible'})};
- const scan=()=>vm.runInNewContext(`(${imageControls.toString()})('douyin')`,context);
- assert.equal(scan().editor,true);assert.equal(editors[0].id,'publisher-image-body');
- editors.push({id:'',getBoundingClientRect:visible,getRootNode:()=>scope});
- assert.equal(scan().editor,false);assert.ok(editors.every(e=>e.id===''));
+ const scan=()=>vm.runInNewContext(`(${imageControls.toString()})(platform)`,{...context,platform});
+ assert.equal(scan().editor,true);assert.equal(scan().editor,true);assert.equal(editors[0].marker,'body');
+ if(platform==='youtube')assert.equal(editors[0].id,'contenteditable-root');
+ editors.push({...markable(platform==='youtube'?'contenteditable-root':''),getRootNode:()=>scope});
+ assert.equal(scan().editor,false);assert.ok(editors.every(e=>e.marker===''));
 });

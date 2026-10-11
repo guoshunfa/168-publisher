@@ -2,16 +2,16 @@ export function imageControls(platform) {
   const roots=[document];
   for(let i=0;i<roots.length;i++)for(const node of roots[i].querySelectorAll('*'))if(node.shadowRoot)roots.push(node.shadowRoot);
   const visible=e=>e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden';
-  for(const root of roots)for(const node of root.querySelectorAll('#publisher-image-body,#publisher-image-title,#publisher-image-files'))node.id='';
+  for(const root of roots)for(const node of root.querySelectorAll('[data-168-image=body],[data-168-image=title],[data-168-image=files]'))node.removeAttribute('data-168-image');
   const selectors={douyin:{editor:'[contenteditable="true"]',title:'input[placeholder*="作品标题"]',scope:'body'},bilibili:{editor:'.bili-rich-textarea__inner[contenteditable="true"]',title:'.bili-dyn-publishing__title__input',scope:'.bili-dyn-publishing'},wechat_channels:{editor:'.input-editor[contenteditable]',title:'input[placeholder*="22个字符"]',scope:'.post-edit-wrap'},youtube:{editor:'ytd-backstage-post-dialog-renderer #contenteditable-root',scope:'ytd-backstage-post-dialog-renderer'}}[platform];
   if(!selectors)throw new Error('Unsupported image platform');
   const find=selector=>roots.flatMap(root=>[...root.querySelectorAll(selector)]).filter(visible);
   const editors=find(selectors.editor),titles=selectors.title?find(selectors.title):[];
   const scope=find(selectors.scope).find(e=>editors[0]&&e.contains(editors[0]))||editors[0]?.getRootNode();
   const files=roots.flatMap(root=>[...root.querySelectorAll('input[type=file]')]).filter(e=>/image|png|jpe?g/i.test(e.accept)&&e.multiple&&(!scope||scope.contains(e)));
-  if(editors.length===1)editors[0].id='publisher-image-body';
-  if(titles.length===1)titles[0].id='publisher-image-title';
-  if(files.length===1)files[0].id='publisher-image-files';
+  if(editors.length===1)editors[0].setAttribute('data-168-image','body');
+  if(titles.length===1)titles[0].setAttribute('data-168-image','title');
+  if(files.length===1)files[0].setAttribute('data-168-image','files');
   return {editor:editors.length===1,title:titles.length===1,file:files.length===1,editorCount:editors.length,fileCount:files.length};
 }
 
@@ -51,8 +51,8 @@ export function observeImage(expected) {
   for(let i=0;i<roots.length;i++)for(const node of roots[i].querySelectorAll('*'))if(node.shadowRoot)roots.push(node.shadowRoot);
   const visible=e=>e.getBoundingClientRect().height>0&&getComputedStyle(e).visibility!=='hidden';
   const all=selector=>roots.flatMap(root=>[...root.querySelectorAll(selector)]);
-  const editors=all('#publisher-image-body').filter(visible),editor=editors.length===1?editors[0]:null;
-  const title=all('#publisher-image-title').filter(visible)[0]?.value||'';
+  const editors=all('[data-168-image=body]').filter(visible),editor=editors.length===1?editors[0]:null;
+  const title=all('[data-168-image=title]').filter(visible)[0]?.value||'';
   const host={douyin:'creator.douyin.com',bilibili:'t.bilibili.com',wechat_channels:'channels.weixin.qq.com',youtube:'www.youtube.com'}[platform];
   let account='';
   if(platform==='bilibili')account=document.querySelector('a.header-entry-mini[href*="space.bilibili.com"]')?.href||'';
@@ -65,7 +65,7 @@ export function observeImage(expected) {
   }
   if(platform==='wechat_channels')account=all('*').map(e=>e.__vue__?.userStore?.finderUsername).find(Boolean)||'';
   if(platform==='douyin'){
-    const node=all('#publisher-image-files')[0]||editor;
+    const node=all('[data-168-image=files]')[0]||editor;
     let fiber=node?.[Object.keys(node).find(key=>key.startsWith('__reactFiber$'))];
     const identities=new Set();
     for(let depth=0;fiber&&depth<64;depth++,fiber=fiber.return){const user=fiber.memoizedProps?.userInfo;if(user?.uid)identities.add(String(user.uid));}
@@ -82,7 +82,7 @@ export function observeImage(expected) {
   const publish=all('button,[role=button],.bili-dyn-publishing__action.launcher').filter(visible).filter(e=>/^(发布|发表|Post|Publish)$/.test((e.innerText||e.getAttribute('aria-label')||'').trim()));
   const errors=all('[role=alert],.el-message,.ant-message-notice,.weui-desktop-toast').filter(visible).map(e=>e.innerText).filter(t=>/失败|错误|error|failed|验证码|安全验证/i.test(t));
   const blockers=all('[role=alertdialog],[role=dialog],.weui-desktop-dialog__wrp,.semi-modal').filter(e=>visible(e)&&!e.contains(editor));
-  const readyFile=all('#publisher-image-files').length===1;
+  const readyFile=all('[data-168-image=files]').length===1;
   const gates={authenticated:!!account&&!/login/.test(location.pathname),account:!!account&&(!expected.account||expected.account===account),composer:location.hostname===host&&(editors.length===1||platform==='douyin'&&readyFile),text:!!editor&&text===expected.text&&title===(expected.title||''),media:receipt&&ordered,upload:serverProof&&ordered&&publish.length===1&&!publish[0].disabled&&!/disabled/.test(String(publish[0].className)),noBlockingDialog:!blockers.length&&!errors.length,safety:guard?.armed===true&&guard.fingerprint===expected.fingerprint&&guard.blockedAttempts.length===0};
   return {observedAt:new Date().toISOString(),account,text,title,editorText:editor?text:null,images,videos:0,files,errors,gates,mediaPending:receipt&&(!ordered||!serverProof),uploadComplete:gates.upload,finalPublishClicked:false};
 }

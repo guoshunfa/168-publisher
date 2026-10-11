@@ -156,8 +156,8 @@ if(state.pkg.platform==='youtube'&&!await page.evaluate(()=>!!document.querySele
 
 console.log('Native image entry opened');`,lock);
       const xhsFileSelector=pkg.videoPath?'input.upload-input[accept*=".mp4"]':'input.upload-input[accept*=".jpg"]';
-      const editorSelector = image?'#publisher-image-body, #publisher-image-files':options.platform === "jike" ? '[data-lexical-editor="true"][contenteditable="true"]' : options.platform === "xiaohongshu" ? '.tiptap[contenteditable="true"], '+xhsFileSelector : options.platform === "weibo" ? 'textarea[placeholder="有什么新鲜事想分享给大家？"]' : '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]';
-      const fileSelector = image?'#publisher-image-files':options.platform === "xiaohongshu" ? xhsFileSelector : ["weibo", "jike"].includes(options.platform) ? 'input[type="file"]' : '[role="dialog"] input[data-testid="fileInput"]';
+      const editorSelector = image?'[data-168-image=body], [data-168-image=files]':options.platform === "jike" ? '[data-lexical-editor="true"][contenteditable="true"]' : options.platform === "xiaohongshu" ? '.tiptap[contenteditable="true"], '+xhsFileSelector : options.platform === "weibo" ? 'textarea[placeholder="有什么新鲜事想分享给大家？"]' : '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]';
+      const fileSelector = image?'[data-168-image=files]':options.platform === "xiaohongshu" ? xhsFileSelector : ["weibo", "jike"].includes(options.platform) ? 'input[type="file"]' : '[role="dialog"] input[data-testid="fileInput"]';
       let initial = resultFrom(await ego(existingSpaceScript(state) + `
 await page.evaluate(${armGuard.toString()}, { platform: state.pkg.platform, fingerprint: state.fingerprint });
 ${image?`await page.evaluate(${armImageReceipts.toString()});await page.evaluate(${imageControls.toString()},state.pkg.platform);`:""}
@@ -211,8 +211,8 @@ console.log("Upload input submitted; server completion is not awaited");`, lock)
       if (!initial.gates.text) {
         console.error(JSON.stringify({progress:{platform:options.platform,step:'fill_title_body_tags'}}));
         await ego(existingSpaceScript(state) + (options.platform === "xiaohongshu" ? fillXhsScript(state) : `
-${image?`if(state.pkg.title!==undefined&&await page.evaluate(platform=>(${imageControls.toString()})(platform).title,state.pkg.platform))await page.fill('#publisher-image-title',state.pkg.title);`:""}
-await page.focus(${JSON.stringify(image?'#publisher-image-body':editorSelector)});
+${image?`if(state.pkg.title!==undefined&&await page.evaluate(platform=>(${imageControls.toString()})(platform).title,state.pkg.platform))await page.fill('[data-168-image=title]',state.pkg.title);`:""}
+await page.focus(${JSON.stringify(image?'[data-168-image=body]':editorSelector)});
 await page.keyboard.press('Meta+A');
 await page.keyboard.press('Backspace');
 if (state.pkg.text) await page.keyboard.paste(state.pkg.text);
