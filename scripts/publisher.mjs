@@ -3,6 +3,8 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import {createHash} from 'node:crypto';
+import {isDeepStrictEqual} from 'node:util';
+import {adapterType,adapterPackage,mediaKind} from './media-routing.mjs';
 import {autoPublish} from './auto-publish.mjs';
 import {entries} from './registry.mjs';
 import {expandRequest,saveRequestResult} from './input.mjs';
@@ -33,26 +35,28 @@ export function request(argv,raw,registry=entries) {
   if(command==='handoff'&&!flags.has('--confirm-manual-send'))throw new Error('handoff requires explicit manual-send confirmation');
   if(command!=='handoff'&&flags.has('--confirm-manual-send'))throw new Error('Manual-send flag only valid for handoff');
   if(command==='handoff')assertManualSendContent(raw);
-  if(flags.has('--confirm-original-rights')&&type!=='video')throw new Error('Original-rights flag is video only');
+  if(flags.has('--confirm-original-rights')&&type!=='video'&&!(type==='media'&&mediaKind(raw)==='video'))throw new Error('Original-rights flag is video only');
   if(flags.has('--resume-control')&&(!values['--job-id']||!['run','inspect','preflight'].includes(command)))throw new Error('Explicit resume requires an existing job');
   if(values['--space']&&(!['run','preflight'].includes(command)||!/^\d+$/.test(values['--space'])))throw new Error('--space requires a numeric ID for preparation');
   if(values['--wait-timeout']&&(!/^\d+$/.test(values['--wait-timeout'])||!Number.isSafeInteger(Number(values['--wait-timeout']))||Number(values['--wait-timeout'])<1||command!=='run'))throw new Error('--wait-timeout requires positive seconds for run');
   if(['inspect','handoff'].includes(command)&&!values['--job-id'])throw new Error('Existing job-id required');
   const base=values['--job-id']||createHash('sha256').update(JSON.stringify({raw,type,selected})).digest('hex').slice(0,16);
-  const jobs=selected.map(platform=>({platform,jobId:selected.length===1?base:base+'-'+platform}));
+  const jobs=selected.map(platform=>({platform,jobId:selected.length===1?base:base+'-'+platform,...(type==='media'?{type:adapterType(raw,platform,registry),entry:registry[adapterType(raw,platform,registry)].entry}:{})}));
   if(jobs.some(j=>!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(j.jobId)))throw new Error('Invalid or too long job-id');
-  return {command,type,entry:registry[type].entry,actionPreparation:registry[type].actionPreparation===true,urls:registry[type].urls,values,flags,jobs,base};
+  const urls=type==='media'?Object.fromEntries(jobs.map(job=>[job.platform,registry[job.type].urls[job.platform]])):registry[type].urls;
+  return {command,type,entry:registry[type].entry,actionPreparation:registry[type].actionPreparation===true,urls,values,flags,jobs,base};
 }
 
 export function argumentsFor(plan,job,phase) {
-  if(phase==='check'&&plan.type==='video')return ['check',job.platform,path.resolve(plan.values['--package']),'--job-id',job.jobId,...(plan.values['--state-root']?['--state-root',plan.values['--state-root']]:[])];
-  const args=[phase,'--package',path.resolve(plan.values['--package']),'--platform',job.platform,'--job-id',job.jobId];
+  const type=job.type??plan.type,packagePath=job.packagePath??plan.values['--package'];
+  if(phase==='check'&&type==='video')return ['check',job.platform,path.resolve(packagePath),'--job-id',job.jobId,...(plan.values['--state-root']?['--state-root',plan.values['--state-root']]:[])];
+  const args=[phase,'--package',path.resolve(packagePath),'--platform',job.platform,'--job-id',job.jobId];
   for(const key of ['--state-root',...(phase==='check'?[]:['--profile'])])if(plan.values[key])args.push(key,plan.values[key]);
   if(phase==='prepare'&&plan.values['--space'])args.push('--space',plan.values['--space']);
   if(phase==='prepare'&&plan.actionPreparation)args.push('--actions-only');
   if(phase==='prepare'&&job.pageLabel)args.push('--page-label',job.pageLabel);
   if(phase==='handoff'&&plan.jobs.length>1)args.push('--defer-handoff');
-  for(const flag of plan.flags)if(phase==='prepare'&&flag!=='--confirm-manual-send'||phase==='handoff'&&flag==='--confirm-manual-send'||phase==='inspect'&&plan.command==='inspect'&&flag==='--resume-control')args.push(flag);
+  for(const flag of plan.flags)if((flag!=='--confirm-original-rights'||type==='video')&&(phase==='prepare'&&flag!=='--confirm-manual-send'||phase==='handoff'&&flag==='--confirm-manual-send'||phase==='inspect'&&plan.command==='inspect'&&flag==='--resume-control'))args.push(flag);
   return args;
 }
 
@@ -73,7 +77,7 @@ export async function execute(plan,invoke,_pause,{onProgress=()=>{},beforePrepar
   const results={};
   const call=async(job,phase)=>{
     onProgress(results,{platform:job.platform,step:phase,index:plan.jobs.indexOf(job)+1,total:plan.jobs.length});
-    try{return compactResult(plan.type,job.platform,phase,await invoke(job,phase,argumentsFor(plan,job,phase)));}catch(error){if(phase!=='check')throw error;return {status:'failed',phase,error:String(error.message||error),errors:[String(error.message||error)]};}
+    try{return compactResult(job.type??plan.type,job.platform,phase,await invoke(job,phase,argumentsFor(plan,job,phase)));}catch(error){if(phase!=='check')throw error;return {status:'failed',phase,error:String(error.message||error),errors:[String(error.message||error)]};}
   };
   if(['run','check'].includes(plan.command)){
     for(const job of plan.jobs)results[job.platform]={jobId:job.jobId,...await call(job,'check')};
@@ -201,7 +205,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
   const raw=readJson(path.resolve(argv[at+1])),plan=request(argv,raw,registry),details=[];
   plan.inputErrors=[...(context?.inputErrors||[])];
   plan.autoPublish=context?.autoPublish===true;
-  if(plan.autoPublish&&plan.type==='video'&&raw.original&&context.videoConfig?.declarations?.originalityPolicy==='ask_each_run'&&!plan.flags.has('--confirm-original-rights'))plan.inputErrors.push('本次原创权利需要确认，确认后使用 --confirm-original-rights 继续');
+  if(plan.autoPublish&&(plan.type==='video'||plan.jobs.some(job=>job.type==='video'))&&raw.original&&context.videoConfig?.declarations?.originalityPolicy==='ask_each_run'&&!plan.flags.has('--confirm-original-rights'))plan.inputErrors.push('本次原创权利需要确认，确认后使用 --confirm-original-rights 继续');
   if(plan.autoPublish&&JSON.stringify(raw).includes('请勿发布'))plan.inputErrors.push('请勿发布的测试稿不能全自动发布');
   const childOptions={mirrorStderr:!context,mirrorProgress:!!context,env:context?.videoConfigPath?{...process.env,PUBLISHER_VIDEO_CONFIG:context.videoConfigPath}:process.env};
   const emit=report=>{Object.assign(report,{command:plan.command,type:plan.type,jobId:plan.base,inputErrors:plan.inputErrors});writeJson(report.reportPath,report);saveRequestResult(context,report);console.log(context?renderReport(report,context,raw):JSON.stringify(report,null,2));};
@@ -213,11 +217,24 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
   let session;
   const release=acquireJobLock(path.join(stateRoot,'.runs',plan.base+'.lock'),{jobId:plan.base});
   try{
+  if(plan.type==='media'){
+    if(fs.existsSync(sessionPath)&&readJson(sessionPath).fingerprint&&readJson(sessionPath).fingerprint!==runFingerprint(plan,raw))throw new Error('Original media request changed');
+    for(const job of plan.jobs){
+      const pkg=adapterPackage(raw,job.platform,job.type),base=path.dirname(path.resolve(plan.values['--package']));
+      const absolute=value=>/^https:\/\//.test(value)?value:path.resolve(base,value);
+      if(pkg.videoPath)pkg.videoPath=absolute(pkg.videoPath);
+      if(pkg.images)pkg.images=pkg.images.map(absolute);
+      if(pkg.cover?.sourcePath)pkg.cover={...pkg.cover,sourcePath:absolute(pkg.cover.sourcePath)};
+      job.packagePath=path.join(stateRoot,'.packages',plan.base,job.platform+'.json');
+      if(fs.existsSync(job.packagePath)&&!isDeepStrictEqual(readJson(job.packagePath),pkg)&&fs.existsSync(path.join(stateRoot,job.jobId,'state.json')))throw new Error('Original platform package changed');
+      if(!fs.existsSync(job.packagePath)||!isDeepStrictEqual(readJson(job.packagePath),pkg))writeJson(job.packagePath,pkg);
+    }
+  }
   const preparePages=async()=>{
       if(!plan.actionPreparation)return;
       if(legacy){
         const original=plan.jobs.map(job=>({job,state:readJson(path.join(stateRoot,job.jobId,'state.json'))}));
-        const bindings=original.map(({job,state})=>({job,item:plan.type==='video'?state.platforms?.[job.platform]:state}));
+        const bindings=original.map(({job,state})=>({job,item:(job.type??plan.type)==='video'?state.platforms?.[job.platform]:state}));
         const spaces=new Set(bindings.map(({item})=>item?.taskSpaceId));
         if(spaces.size!==1||spaces.has(undefined))throw new Error('Legacy tasks do not share one original space; recover individually');
         const previous=fs.existsSync(sessionPath)?readJson(sessionPath):null;
@@ -244,7 +261,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
   };
   if(plan.command==='preflight'){
     const contentAudit=await execute({...plan,command:'check'},async(job,phase,args)=>{
-      const result=await run(process.execPath,[plan.entry,...args],childOptions);
+      const result=await run(process.execPath,[job.entry??plan.entry,...args],childOptions);
       details.push({platform:job.platform,jobId:job.jobId,phase,...result});writeJson(path.join(reportDirectory,'run-details.json'),details);return result;
     });
     let report;
@@ -280,7 +297,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
       session||=await ensureRunSpace(plan,sessionPath);
       if(!args.includes('--space'))args.push('--space',String(session.taskSpaceId));
     }
-    const result=await run(process.execPath,[plan.entry,...args],childOptions);
+    const result=await run(process.execPath,[job.entry??plan.entry,...args],childOptions);
     details.push({platform:job.platform,jobId:job.jobId,phase,...result});writeJson(path.join(reportDirectory,'run-details.json'),details);return result;
   };
   const hasUnsentJobs=()=>plan.jobs.some(job=>!plan.publications?.[job.platform]);
@@ -297,7 +314,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
       if(!session&&fs.existsSync(sessionPath))session=readJson(sessionPath);
       if(!session)return;
       if(plan.autoPublish){
-        await autoPublish(plan,results,{stateRoot,raw,timeout:context.settings.waitTimeout,inspect:async job=>compactResult(plan.type,job.platform,'inspect',await invoke(job,'inspect',argumentsFor(plan,job,'inspect'))),onProgress:(job,step)=>console.error(JSON.stringify({progress:{platform:job.platform,step}}))});
+        await autoPublish(plan,results,{stateRoot,raw,timeout:context.settings.waitTimeout,inspect:async job=>compactResult(job.type??plan.type,job.platform,'inspect',await invoke(job,'inspect',argumentsFor(plan,job,'inspect'))),onProgress:(job,step)=>console.error(JSON.stringify({progress:{platform:job.platform,step}}))});
       }
       if(Object.values(results).some(userControlled))return;
       session.handoffAttempted=true;writeJson(sessionPath,session);
@@ -308,7 +325,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
       if(receipt.guardWarnings?.length)for(const item of Object.values(results)){item.guardWarnings=receipt.guardWarnings;item.configurationComplete=false;if(item.status==='configured')item.status='needs_user';}
       for(const item of Object.values(results))item.handedOff=true;
       session.handedOff=true;session.completed=Object.values(results).every(r=>plan.autoPublish?r.status==='published':r.configurationComplete===true);writeJson(sessionPath,session);
-      if(!plan.autoPublish)for(const job of plan.jobs.filter(job=>results[job.platform]?.configurationComplete===true)){const statePath=path.join(stateRoot,job.jobId,'state.json');if(!fs.existsSync(statePath))continue;if(plan.type==='dynamic'){const state=readJson(statePath);state.handoff={status:'review_handed_off',at:new Date().toISOString()};writeJson(statePath,state);}else{const file=path.join(stateRoot,job.jobId,'manual-control.json'),control=fs.existsSync(file)?readJson(file):{};writeJson(file,{...control,handoffs:{...control.handoffs,[job.platform]:{status:'review_handed_off'}}});}}
+      if(!plan.autoPublish)for(const job of plan.jobs.filter(job=>results[job.platform]?.configurationComplete===true)){const statePath=path.join(stateRoot,job.jobId,'state.json');if(!fs.existsSync(statePath))continue;if((job.type??plan.type)==='dynamic'){const state=readJson(statePath);state.handoff={status:'review_handed_off',at:new Date().toISOString()};writeJson(statePath,state);}else{const file=path.join(stateRoot,job.jobId,'manual-control.json'),control=fs.existsSync(file)?readJson(file):{};writeJson(file,{...control,handoffs:{...control.handoffs,[job.platform]:{status:'review_handed_off'}}});}}
     }
   });
   if(plan.command==='handoff'&&plan.jobs.length>1&&Object.values(results).every(r=>r.status==='awaiting_manual_send')){

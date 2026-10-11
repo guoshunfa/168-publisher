@@ -6,7 +6,8 @@ import path from 'node:path';
 import {parseTemplate,expandRequest,saveRequestResult} from '../scripts/input.mjs';
 import {resolveDefaults,withEffectivePackage} from '../scripts/video-defaults.mjs';
 import {renderReport} from '../scripts/report.mjs';
-import {entries} from '../scripts/registry.mjs';
+import {entries as currentEntries} from '../scripts/registry.mjs';
+const {media,...entries}=currentEntries;
 import {execute,request,compactResult} from '../scripts/publisher.mjs';
 const settings={profile:'账号 A',platforms:{video:entries.video.platforms,dynamic:entries.dynamic.platforms},waitTimeout:1800};
 const template='类型：动态\n标题：无\n正文：第一行\n\n第二行  原样\n标签：AI 工具、发布\n媒体：\n/tmp/a b.png\n/tmp/c.png\n平台：X、微博、即刻';
@@ -91,14 +92,16 @@ test('Summary preserves complete text and every error, distinguishes login unkno
 
 test('CLI template preflight, saved report, confirmed run and resume use the same pages',{skip:process.platform!=='darwin'},async()=>{
  const {run}=await import('../scripts/runtime.mjs');const {fileURLToPath}=await import('node:url');
+ for(const unified of [false,true]){
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'publisher-template-cli-'));
  try{
   const fixture=path.join(dir,'fixture.json'),child=path.join(dir,'entry.mjs'),ego=path.join(dir,'ego.mjs'),runner=path.join(dir,'runner.mjs'),input=path.join(dir,'input.txt');
-  fs.writeFileSync(input,template.replace('AI 工具','AI').replace('X、微博、即刻','X、微博'));fs.writeFileSync(fixture,JSON.stringify({pages:['p1'],urls:{p1:'about:blank'},calls:[],egoCalls:0,creates:0,handOffs:0}));
-  fs.writeFileSync(child,`import fs from 'node:fs';const args=process.argv.slice(2),f=JSON.parse(fs.readFileSync(${JSON.stringify(fixture)}));f.calls.push(args[0]);fs.writeFileSync(${JSON.stringify(fixture)},JSON.stringify(f));console.log(JSON.stringify(args[0]==='check'?{status:'input_checked'}:{status:'configured',configurationComplete:true,taskSpaceId:65,finalPublishClicked:false}));`);
+  fs.writeFileSync(input,unified?'标题：原题\n正文：原文\n标签：AI\n媒体：/tmp/a.mp4\n平台：X、YouTube':template.replace('AI 工具','AI').replace('X、微博、即刻','X、微博'));fs.writeFileSync(fixture,JSON.stringify({pages:['p1'],urls:{p1:'about:blank'},calls:[],egoCalls:0,creates:0,handOffs:0}));
+  fs.writeFileSync(child,`import fs from 'node:fs';const args=process.argv.slice(2),f=JSON.parse(fs.readFileSync(${JSON.stringify(fixture)}));f.calls.push(args[0]);fs.writeFileSync(${JSON.stringify(fixture)},JSON.stringify(f));console.log(JSON.stringify(args[0]==='check'?{ok:true,platform:'youtube',status:'input_checked'}:{status:'configured',configurationComplete:true,taskSpaceId:65,finalPublishClicked:false}));`);
   fs.writeFileSync(ego,`#!${process.execPath}\nimport fs from 'node:fs';import vm from 'node:vm';let body='';for await(const c of process.stdin)body+=c;const file=${JSON.stringify(fixture)},f=JSON.parse(fs.readFileSync(file));f.egoCalls++;const save=()=>fs.writeFileSync(file,JSON.stringify(f));save();const page=label=>({label,goto:async url=>{f.urls[label]=url;save();},waitForFunction:async()=>{},evaluate:async fn=>fn.toString().includes('const roots=')?{status:'login_checked'}:[]});const task={spaceId:65,get name(){return f.name},tabs:async()=>f.pages.map(label=>({label,url:f.urls[label]})),page,newPage:async()=>{const label='p'+(f.pages.length+1);f.pages.push(label);f.urls[label]='about:blank';f.creates++;save();return page(label);},handOff:async()=>{f.ownership='user';f.handOffs++;save();}};await vm.runInNewContext('(async()=>{'+body+'})()',{console,listTaskSpaces:async()=>f.name?[{id:65,name:f.name,ownership:f.ownership}]:[],taskSpace:async id=>{if(!f.name){f.name=id;f.ownership='agent';save();}return task;},takeOverTaskSpace:async()=>{f.ownership='agent';save();return task;}});`,{mode:0o700});
   const publisher=fileURLToPath(new URL('../scripts/publisher.mjs',import.meta.url));
   const options={registry:{dynamic:{platforms:['x','weibo'],entry:child,actionPreparation:true,urls:{x:'https://x.com',weibo:'https://weibo.com'}}},stateHome:dir,configFile:path.join(dir,'settings.json')};
+  if(unified)options.registry={...currentEntries,video:{...currentEntries.video,entry:child},dynamic:{...currentEntries.dynamic,entry:child}};
   fs.writeFileSync(runner,`import {main} from ${JSON.stringify(publisher)};await main(process.argv.slice(2),${JSON.stringify(options)});`);
   const invoke=args=>run(process.execPath,[runner,...args],{input:fs.readFileSync(input,'utf8'),env:{...process.env,VIDEO_PUBLISHER_V2_EGO_COMMAND:ego,VIDEO_PUBLISHER_V2_LOCK_ROOT:path.join(dir,'locks')}});
   const first=await invoke(['preflight','--input','-','--job-id','case']);assert.equal(first.code,0,first.stderr);assert.match(first.stdout,/平台 \| 登录状态 \| 标题/);assert.match(first.stdout,/目前没有需要处理的问题/);
@@ -110,4 +113,5 @@ test('CLI template preflight, saved report, confirmed run and resume use the sam
   observed=JSON.parse(fs.readFileSync(fixture));assert.deepEqual(observed.calls,['check','check','check','check','prepare','prepare']);assert.equal(observed.creates,1);assert.equal(observed.handOffs,2);
   const repeat=await invoke(['run','--job-id','case','--resume-control']);assert.notEqual(repeat.code,0);assert.equal(JSON.parse(fs.readFileSync(fixture)).calls.filter(c=>c==='prepare').length,2);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+ }
 });

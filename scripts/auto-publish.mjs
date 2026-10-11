@@ -148,7 +148,8 @@ export async function autoPublish(plan,results,{inspect,stateRoot,raw,timeout,on
     const ready=await waitUntilReady(()=>inspect(job),{timeout});
     if(!ready.ready){results[job.platform]={...ready,jobId:job.jobId,configurationComplete:results[job.platform].configurationComplete,reason:ready.reason||'发布前检查未通过：'+(ready.missing?.join('、')||ready.status||'未取得核验结果')};if(userControl(ready))return;continue;}
     const directory=resolvePublisherLockDirectory();
-    const releaseEntry=plan.type==='video'?acquireJobLock(path.join(stateRoot,'.entry-lock'),{jobId:job.jobId}):()=>{};
+    const type=job.type??plan.type;
+    const releaseEntry=type==='video'?acquireJobLock(path.join(stateRoot,'.entry-lock'),{jobId:job.jobId}):()=>{};
     let release=()=>{};
     try{
       release=acquireJobLock(directory,{jobId:job.jobId,scope:'publisher'});
@@ -157,7 +158,7 @@ export async function autoPublish(plan,results,{inspect,stateRoot,raw,timeout,on
       const statePath=path.join(stateRoot,job.jobId,'state.json'),state=readJson(statePath);
       onProgress(job,'publish');
       results[job.platform]={jobId:job.jobId,...await publishOnce(file,async()=>{
-        const output=await ego(publicationScript(plan.type,job.platform,state,statePath),lock);
+        const output=await ego(publicationScript(type,job.platform,state,statePath),lock);
         const line=output.split('\n').filter(line=>line.startsWith(PREFIX)).at(-1);
         if(!line)throw new Error('发布回执缺失');
         return JSON.parse(line.slice(PREFIX.length));

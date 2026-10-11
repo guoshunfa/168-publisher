@@ -1,6 +1,9 @@
-# 视频操作
+# 视频上传适配
 
-模板在“类型”上方填写 `是否全自动：否`，省略也是“否”。本页原有确认、配置即交回及人工发送说明适用于默认“否”；“是”使用根 Skill 的全自动流程，由调度器连续预检、配置、等待核验、最终发布与回执检查，只有问题才暂停。底层 `handoff` 仍只交接控制，不发送。全自动开关只存当前请求；旧 JSON 入口不启用。
+新任务由根 Skill 的媒体资源自动路由，不填写类型。图片支持 X、微博、小红书、即刻；视频支持同四个平台及抖音、B站、视频号、YouTube。此页保留底层适配器与旧 JSON/任务命令；`dynamic` 是兼容实现标识，不能作为新任务的用户选择。
+
+
+模板模板第一项填写 `是否全自动：否`，省略也是“否”。本页原有确认、配置即交回及人工发送说明适用于默认“否”；“是”使用根 Skill 的全自动流程，由调度器连续预检、配置、等待核验、最终发布与回执检查，只有问题才暂停。底层 `handoff` 仍只交接控制，不发送。全自动开关只存当前请求；旧 JSON 入口不启用。
 
 命令相对于本 Skill 目录。需要 macOS、Node.js、FFmpeg（提取视频首帧）和已可用的 Ego CLI；不安装额外 npm 依赖。
 
@@ -8,7 +11,7 @@
 
 ## 配置与内容包
 
-调用输入固定为四组：**内容、标签、媒体、平台**。README 的“类型、标题、内容”归入内容组：类型写“视频”，标题提供共享标题，内容填写所选平台要求的正文/简介或平台专属覆盖；标签只用用户给出的名称，以 `、` 分隔或写“无”；媒体提供一段视频；可选“封面 / Cover”填写“默认”或一张本地 JPEG/PNG 图片；平台用 `、` 列出目标，“所有平台”取配置 `platforms.video`。四组是入口分组：必填文案仍须完整；常规平台设置沿用程序与持久默认，不从媒体推断，也不逐次补问。
+标准模板按媒体自动分流；视频是一段本地素材，标题、正文、标签按目标平台映射。平台使用统一 `platforms.media`；本页仅说明支持封面与声明的五平台底层适配器，X、微博、即刻视频见[社交视频适配](dynamic.md)。
 
 | 平台 | 内容组所需文字 | 标签 | 额外条件 |
 | --- | --- | --- | --- |
@@ -22,7 +25,7 @@
 
 ## 默认设置
 
-标准六字段视频输入不需要额外填写 YouTube 受众、推广或逼真合成选项。程序实际 `check/run/prepare` 使用：本次明确值 > `video.json` 的 `defaults` > 已有 `platforms.youtube` 偏好 > 内建默认值。显式 `false`、空分类/语言/播放列表、空视频号短标题与 `cover.uploadCustomCover:false` 都保留。
+标准五字段视频输入不需要额外填写 YouTube 受众、推广或逼真合成选项。程序实际 `check/run/prepare` 使用：本次明确值 > `video.json` 的 `defaults` > 已有 `platforms.youtube` 偏好 > 内建默认值。显式 `false`、空分类/语言/播放列表、空视频号短标题与 `cover.uploadCustomCover:false` 都保留。
 
 | 内容包/defaults 字段 | 内建默认 |
 | --- | --- |
@@ -70,7 +73,7 @@ node scripts/video.mjs config add-platform youtube
 }
 ```
 
-类型字段决定视频工作流；动态里的 MP4 仍走动态入口。标题与正文长度按 [平台发布规则](platform-rules.md)及现有预检查，不使用统一上限。视频和封面必须为绝对路径，真实换行使用 JSON 的 `\n` 编码。`uploadCustomCover=false` 使用平台默认封面；设为 `true` 时可提供单张 `sourcePath`，或沿用完整比例和槽位；没有提供封面图片时提取视频首帧。详见 [内容包](../assets/vendor/video-publisher/references/content-package.md) 与 [封面流程](../assets/vendor/video-publisher/references/cover-workflow.md)。
+新模板携带视频自动选择视频；仅旧 JSON 和保存任务沿用原入口。标题与正文长度按 [平台发布规则](platform-rules.md)及现有预检查，不使用统一上限。视频和封面必须为绝对路径，真实换行使用 JSON 的 `\n` 编码。`uploadCustomCover=false` 使用平台默认封面；设为 `true` 时可提供单张 `sourcePath`，或沿用完整比例和槽位；没有提供封面图片时提取视频首帧。详见 [内容包](../assets/vendor/video-publisher/references/content-package.md) 与 [封面流程](../assets/vendor/video-publisher/references/cover-workflow.md)。
 
 ```bash
 node scripts/video.mjs check bilibili /absolute/path/package.json

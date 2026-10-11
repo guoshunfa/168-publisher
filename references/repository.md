@@ -5,8 +5,8 @@
 | 范围 | 内容 |
 | --- | --- |
 | 根目录 | .gitignore、LICENSE、README.md、README.en.md、SKILL.md |
-| agents、references | Skill 入口、视频与动态说明、安装与仓库说明、更新记录 |
-| scripts、tests | 公共运行代码、视频与动态实现、自有模拟测试 |
+| agents、references | Skill 入口、图文与视频说明、安装与仓库说明、更新记录 |
+| scripts、tests | 公共运行代码、图文与视频实现、自有模拟测试 |
 | assets/vendor | 不可修改的 MIT 上游快照及来源散列 |
 | assets/twitter-text | X 字数计算 bundle、构建与来源清单，以及 Apache-2.0 / MIT 第三方许可；见[第三方说明](third-party-notices.md) |
 | .github | 贡献、安全与行为准则、模板、CI 和 Actions 更新配置 |

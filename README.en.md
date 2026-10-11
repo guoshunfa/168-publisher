@@ -2,7 +2,7 @@
 
 # 168 Publisher
 
-Current version: `0.0.26`.
+Current version: `0.0.27`.
 
 A local AI Skill for developers and content creators: **prepare one set of text and assets for multiple platforms, use different accounts through Profiles, and publish manually by default or enable automatic publication for this request.**
 
@@ -13,12 +13,20 @@ A local AI Skill for developers and content creators: **prepare one set of text 
 - **Resume the original job:** after resolving login or field issues, continue in the original job and pages. Configured, handed-off platforms are skipped, and uncertain file submissions are not automatically retried.
 - **Source you can customize:** first-party code uses the [MIT license](LICENSE), so you can adapt platform support and workflows. The template includes a per-request automatic-publishing switch, disabled by default.
 
-| Content | Supported platforms |
-| --- | --- |
-| [Video](references/video.md) | Xiaohongshu, Douyin, Bilibili, WeChat Channels, YouTube |
-| [Posts](references/dynamic.md) | X, Weibo, Xiaohongshu, Jike |
+| Platform | Images with text | Video |
+| --- | --- | --- |
+| X | ✓ | ✓ |
+| Weibo | ✓ | ✓ |
+| Xiaohongshu | ✓ | ✓ |
+| Jike | ✓ | ✓ |
+| Douyin | — | ✓ |
+| Bilibili | — | ✓ |
+| WeChat Channels | — | ✓ |
+| YouTube | — | ✓ |
 
-It accepts prepared content and does not create titles, copy, tags, or videos; video covers default to the first frame. Article publishing is unsupported. A post can include one video and still uses the post entry point.
+Images select the image workflow; a video selects the video workflow. No Type field is needed. One `platforms.media` list stores defaults; image requests filter out platforms without image support.
+
+It accepts prepared content and does not create titles, copy, tags, or videos; video covers default to the first frame. Article publishing is unsupported.
 
 ## Installation
 
@@ -42,9 +50,8 @@ Replace `<...>` and send the whole block to your AI. Put one local absolute path
 ```md
 $168-publisher
 Auto publish: no
-Type: <post or video>
 Title: <title, or none>
-Body: <post text or video description>
+Body: <text or video description>
 Tags: <tags separated by 、, or none>
 Media:
 <full path to your video or image>
@@ -52,12 +59,12 @@ Cover: default
 Platforms: <platform IDs separated by 、>
 ```
 
-- **Title and body:** videos require a title. Only Xiaohongshu posts support a title; use `none` for other post platforms. Post text is required; use `none` for an unused video description.
-- **Cover:** For videos, `default`, an empty value, or omission extracts the first frame and uploads it to each platform’s cover field. A supplied JPEG/PNG path takes priority and skips frame extraction. Posts do not support custom covers.
-- **Auto publish:** put this above Type. Use `yes` or `no`; omission means `no`. It applies only to the current request and is preserved on resume.
-- **Media:** posts accept one or more JPEG/PNG images, or one MP4, never both. Standalone videos accept one MP4 / M4V / MOV. The standard template does not accept remote URLs.
-- **Tags:** separate names only with `、`, not spaces. Post tag names cannot contain internal whitespace. Standalone Xiaohongshu, Douyin, Bilibili, and WeChat Channels videos require tags; `none` prompts you to supply them.
-- **Platforms:** use `x`, `weibo`, `xiaohongshu`, `jike`, `douyin`, `bilibili`, `wechat_channels`, or `youtube`, separated by `、`, as applicable to the content type. `all platforms` uses that type's saved list; initially it includes every supported platform for that type.
+- **Title and body:** Platforms with title fields use the shared title. Only Xiaohongshu image requests use a title. X, Weibo and Jike do not use an independent title. Image text is required; use `none` for an unused video description.
+- **Cover:** For videos, `default`, an empty value, or omission extracts the first frame and uploads it to supported platform cover fields. A supplied JPEG/PNG path takes priority and skips frame extraction. Image requests do not support custom covers; X, Weibo and Jike videos also have no separate cover field.
+- **Auto publish:** put this first. Use `yes` or `no`; omission means `no`. It applies only to the current request and is preserved on resume.
+- **Media:** one or more JPEG/PNG images select the image workflow; one MP4 / M4V / MOV selects video. Do not mix them. Actual formats and specifications are checked per platform. The standard template does not accept remote URLs.
+- **Tags:** separate names only with `、`, not spaces. Social adapter tag names cannot contain internal whitespace. Standalone Xiaohongshu, Douyin, Bilibili, and WeChat Channels videos require tags; `none` prompts you to supply them.
+- **Platforms:** use `x`, `weibo`, `xiaohongshu`, `jike`, `douyin`, `bilibili`, `wechat_channels`, or `youtube`, separated by `、`, as applicable to the content type. `all platforms` uses the unified `platforms.media` list; image requests filter out unsupported image targets.
 
 Append optional fields only when needed:
 
@@ -68,17 +75,16 @@ Append optional fields only when needed:
 
 **Example**
 
-This post includes one video and targets X and Weibo. Replace the example path with your actual file:
+This image request targets X and Weibo. Replace the example path with your actual file:
 
 ```md
 $168-publisher
 Auto publish: no
-Type: post
 Title: none
 Body: I turned my repeated publishing steps into a Skill to reduce form filling and uploads.
 Tags: AI、VideoCreation
 Media:
-/absolute/path/to/demo.mp4
+/absolute/path/to/demo.png
 Cover: default
 Platforms: x、weibo
 ```
@@ -101,7 +107,7 @@ An earlier four-platform post completed with success receipts, including user-co
 
 - Only your supplied text, tags, and assets are used. Media and filenames are not analyzed to generate copy. Standalone Xiaohongshu video currently has no description-writing path; shared descriptions go only to other selected platforms that support them.
 - Built-in video defaults include original/self-made content, not made for kids, no paid promotion, no realistic altered content, first-frame video covers, and an empty WeChat short title. **YouTube visibility defaults to public.** Explicit task values override saved settings, then program defaults; the confirmation list shows effective values. AI-generation declarations come only from facts you supply.
-- Some video adapters only support original/self-made content and stop for explicit non-original input. Posts do not support custom covers, polls, scheduling, location, or circle selection. See [platform publishing rules](references/platform-rules.en.md).
+- Some video adapters only support original/self-made content and stop for explicit non-original input. Image requests do not support custom covers, polls, scheduling, location, or circle selection. See [platform publishing rules](references/platform-rules.en.md).
 - Preparing content submits the selected text and assets to the target platforms. Keep private assets, configuration, and job records outside the source directory.
 - Local checks do not guarantee platform approval. Unknown specifications and account conditions still require editor checks. With `no`, final sending remains manual without processing waits. With `yes`, the script waits within a deadline, verifies the original draft, clicks publish, and checks platform feedback. A click alone is not publication success; unknown outcomes are never retried automatically.
 
@@ -111,9 +117,9 @@ An earlier four-platform post completed with success receipts, including user-co
 Use $168-publisher, 配置 (configuration).
 ```
 
-The AI returns the configuration path, complete JSON, and field descriptions. Edit it yourself or ask the AI to set the default post platforms to X and Weibo; it validates and reads back the result. New settings affect new jobs only. Resuming preserves the original content, platforms, Profile, and settings.
+The AI returns the configuration path, complete JSON, and field descriptions. Edit it yourself or ask the AI to set the default publishing platforms to X and Weibo; it validates and reads back the result. New settings affect new jobs only. Resuming preserves the original content, platforms, Profile, and settings.
 
-[Platform publishing rules](references/platform-rules.en.md) are available in English. Detailed operational guides are in Chinese: [installation and entry verification](references/installation.md), [videos and covers](references/video.md), [post assets](references/dynamic.md), and [advanced input, recovery, and validation](references/workflow.md).
+[Platform publishing rules](references/platform-rules.en.md) are available in English. Detailed operational guides are in Chinese: [installation and entry verification](references/installation.md), [videos and covers](references/video.md), [images and social video assets](references/dynamic.md), and [advanced input, recovery, and validation](references/workflow.md).
 
 ## License and contributing
 

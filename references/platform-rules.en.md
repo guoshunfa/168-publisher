@@ -1,5 +1,8 @@
 [简体中文](platform-rules.md)
 
+New requests infer media from images or a video. Eight platforms share one default list; only X, Weibo, Xiaohongshu and Jike support images. The video/dynamic entry names below describe existing adapters and legacy jobs, not a user-selected content type. New Xiaohongshu videos use the video entry; X, Weibo and Jike videos use their social adapters.
+
+
 # Platform publishing rules
 
 Checked on **2026-10-10**. This section covers all nine supported platform/content combinations. **Program limits** describe the current input validators and adapters. **Official rules** apply only to their stated entry point. **Unverified** means the target account's editor must still confirm the rule; it does not mean unlimited. Local length and file checks cannot establish account permissions, copyright status or moderation approval.

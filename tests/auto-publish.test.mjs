@@ -5,7 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
 import {parseTemplate,expandRequest} from '../scripts/input.mjs';
-import {entries} from '../scripts/registry.mjs';
+import {entries as currentEntries} from '../scripts/registry.mjs';
+const {media,...entries}=currentEntries;
 import {autoPublish,publishOnce,waitUntilReady,selectPublishButton,clickPublishButton,publicationFeedback,publicationScript} from '../scripts/auto-publish.mjs';
 import {execute,request} from '../scripts/publisher.mjs';
 import {run} from '../scripts/runtime.mjs';
@@ -178,7 +179,7 @@ test('Generated video publication executes complete observation gates before rel
 });
 
 test('Automatic preflight proceeds through configure, inspect and publish without a manual handoff; login blocks all writes',{skip:process.platform!=='darwin'},async()=>{
- for(const type of ['dynamic','video'])for(const loggedIn of [true,false]){
+ for(const unified of [false,true])for(const type of ['dynamic','video'])for(const loggedIn of [true,false]){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'publisher-auto-flow-'));
   try{
    const fixture=path.join(dir,'fixture.json'),input=path.join(dir,'input'),child=path.join(dir,'entry.mjs'),ego=path.join(dir,'ego.mjs'),runner=path.join(dir,'runner.mjs'),configFile=path.join(dir,'settings.json');
@@ -186,12 +187,13 @@ test('Automatic preflight proceeds through configure, inspect and publish withou
    fs.writeFileSync(child,`import fs from 'node:fs';import path from 'node:path';const args=process.argv.slice(2),f=JSON.parse(fs.readFileSync(${JSON.stringify(fixture)}));f.calls.push(args[0]);fs.writeFileSync(${JSON.stringify(fixture)},JSON.stringify(f));if(args[0]==='prepare'){const directory=path.join(args[args.indexOf('--state-root')+1],args[args.indexOf('--job-id')+1]);fs.mkdirSync(directory,{recursive:true});fs.writeFileSync(path.join(directory,'state.json'),JSON.stringify({taskSpaceId:65,taskSpaceName:f.name,pageLabel:'p1',pkg:{platform:'x'},assets:[],fingerprint:'test'}));}console.log(JSON.stringify(args[0]==='check'?{status:'input_checked'}:args[0]==='inspect'?{status:'draft_verified',ready:true,finalPublishClicked:false}:{status:'configured',configurationComplete:true,finalPublishClicked:false}));`);
    fs.writeFileSync(ego,`#!${process.execPath}\nimport fs from 'node:fs';import vm from 'node:vm';let body='';for await(const chunk of process.stdin)body+=chunk;const file=${JSON.stringify(fixture)},f=JSON.parse(fs.readFileSync(file));const save=()=>fs.writeFileSync(file,JSON.stringify(f));if(body.includes('data-168-auto-publish')){f.clicks++;save();console.log('168_PUBLISHER_RESULT:'+JSON.stringify({status:'published',finalPublishClicked:true,reason:'发布成功'}));}else{const page={label:'p1',goto:async url=>{f.url=url;save();},waitForFunction:async()=>{},evaluate:async fn=>fn.toString().includes('const roots=')?{status:f.loggedIn?'login_checked':'needs_login'}:[]};const task={spaceId:65,get name(){return f.name},tabs:async()=>[{label:'p1',url:f.url||'about:blank'}],page:()=>page,handOff:async()=>{f.handoffs++;f.ownership='user';save();}};await vm.runInNewContext('(async()=>{'+body+'})()',{console,taskSpace:async id=>{if(!f.name){f.name=id;f.ownership='agent';save();}return task;},listTaskSpaces:async()=>f.name?[{id:65,name:f.name,ownership:f.ownership}]:[],takeOverTaskSpace:async()=>{f.ownership='agent';save();return task;}});}`,{mode:0o700});
    const platform=type==='video'?'youtube':'x';
-   const registry={[type]:{...entries[type],platforms:[platform],entry:child}};
-   fs.writeFileSync(configFile,JSON.stringify({...settings,platforms:{[type]:[platform]}}));
+   const registry=unified?{...currentEntries,video:{...currentEntries.video,entry:child},dynamic:{...currentEntries.dynamic,entry:child}}:{[type]:{...entries[type],platforms:[platform],entry:child}};
+   fs.writeFileSync(configFile,JSON.stringify({...settings,platforms:unified?{media:[platform]}:{[type]:[platform]}}));
    if(type==='video'){
     fs.writeFileSync(input,'是否全自动：是\n类型：视频\n标题：标题\n正文：原文\n标签：无\n媒体：/tmp/a.mp4\n平台：YouTube');
     fs.writeFileSync(child,fs.readFileSync(child,'utf8').replace("{status:'input_checked'}","{ok:true,platform:'youtube'}").replace("pkg:{platform:'x'},assets:[],fingerprint:'test'","pkg:{platform:'youtube'},assets:[],fingerprint:'test',effectivePackage:{videoPath:'/tmp/a.mp4',cover:{uploadCustomCover:false}},platforms:{youtube:{taskSpaceId:65,taskSpaceName:f.name,pageLabel:'p1'}}"));
    }
+   if(unified)fs.writeFileSync(input,fs.readFileSync(input,'utf8').replace(/类型：[^\n]*\n/,''));
    fs.writeFileSync(runner,`import {main} from ${JSON.stringify(new URL('../scripts/publisher.mjs',import.meta.url).href)};await main(['preflight','--input',${JSON.stringify(input)},'--job-id','auto'],${JSON.stringify({stateHome:dir,configFile,registry})});`);
    const env={...process.env,VIDEO_PUBLISHER_V2_EGO_COMMAND:ego,VIDEO_PUBLISHER_V2_LOCK_ROOT:path.join(dir,'locks'),PUBLISHER_VIDEO_CONFIG:path.join(dir,'video.json')};
    fs.writeFileSync(env.PUBLISHER_VIDEO_CONFIG,JSON.stringify({declarations:{originalityPolicy:'all_videos_original'}}));

@@ -12,9 +12,9 @@ test('Configuration creates private defaults and reads manual changes without re
   try {
     const file = path.join(temp, 'settings.json');
     const initial = configuration(file, entries);
-    assert.deepEqual(initial.configuration.platforms.dynamic, entries.dynamic.platforms);
+    assert.deepEqual(initial.configuration.platforms.media, entries.media.platforms);
     assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-    const changed = {...initial.configuration, profile: 'my-profile', platforms: {...initial.configuration.platforms, dynamic: ['x']}, waitTimeout: 600};
+    const changed = {...initial.configuration, profile: 'my-profile', platforms: {...initial.configuration.platforms, media: ['x']}, waitTimeout: 600};
     const text = JSON.stringify(changed);
     fs.writeFileSync(file, text);
     assert.deepEqual(configuration(file, entries).configuration, changed);
@@ -22,9 +22,9 @@ test('Configuration creates private defaults and reads manual changes without re
     for (const invalid of [
       {...changed, waitTimeout: 0},
       {...changed, profile: 'two\nlines'},
-      {...changed, platforms: {...changed.platforms, dynamic: ['x', 'x']}},
-      {...changed, platforms: {...changed.platforms, dynamic: ['zhihu']}},
-      {...changed, platforms: {dynamic: ['x']}},
+      {...changed, platforms: {...changed.platforms, media: ['x', 'x']}},
+      {...changed, platforms: {...changed.platforms, media: ['zhihu']}},
+      {...changed, platforms: {}},
       {...changed, token: 'fixture-only'},
     ]) {
       fs.writeFileSync(file, JSON.stringify(invalid));

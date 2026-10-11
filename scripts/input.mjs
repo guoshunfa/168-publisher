@@ -5,6 +5,7 @@ import {isDeepStrictEqual} from 'node:util';
 import {configuration} from './settings.mjs';
 import {loadVideoConfig,withEffectivePackage} from './video-defaults.mjs';
 import {readJson,writeJson} from './runtime.mjs';
+import {mediaKind,supportedMediaPlatforms} from './media-routing.mjs';
 import {acquireJobLock} from '../assets/vendor/video-publisher/scripts/v2/lib/job-lock.mjs';
 
 export const platformNames={x:'X',weibo:'微博',xiaohongshu:'小红书',jike:'即刻',douyin:'抖音',bilibili:'B站',wechat_channels:'视频号',youtube:'YouTube'};
@@ -24,7 +25,7 @@ function fieldName(label){
  for(const [alias,platform] of Object.entries(aliases))for(const [suffix,field] of Object.entries({'标题':'title','正文':'body','简介':'body','标签':'tags',' title':'title',' body':'body',' tags':'tags'}))if(name===alias+suffix)return platform+'.'+field;
 }
 
-export function parseTemplate(text,settings,registry){
+export function parseTemplate(text,settings,registry,{legacyType}={}){
  if(typeof text!=='string'||text.includes('\0'))throw new Error('输入必须是不含 NUL 的文本');
  const fields={},errors=[];let current;
  for(const line of text.replaceAll('\r\n','\n').replace(/\n$/,'').split('\n')){
@@ -45,10 +46,16 @@ export function parseTemplate(text,settings,registry){
  const autoValue=get('autoPublish').trim();
  if(fields.autoPublish&&!['是','否','yes','no'].includes(autoValue.toLowerCase()))errors.push('是否全自动：只能填写“是”或“否”');
  const autoPublish=['是','yes'].includes(autoValue.toLowerCase());
- const type=typeOf(get('type'));if(!type||!registry[type])throw new Error('类型：请明确填写视频或动态');
+ const media=get('media').split('\n').map(v=>v.trim().replace(/^(['"])(\/.*)\1$/, '$2')).filter(Boolean),videos=media.filter(v=>/\.(mp4|m4v|mov)$/i.test(v)),images=media.filter(v=>/\.(png|jpe?g)$/i.test(v));
+ const inferred=registry.media&&!legacyType;
+ const type=inferred?(videos.length?'video':images.length?'dynamic':null):(legacyType||typeOf(get('type')));
+ if(!type||!registry[type])throw new Error(inferred?'媒体：请提供一段本地视频或至少一张 JPEG/PNG 图片':'类型：请明确填写视频或动态');
+ if(legacyType&&fields.type&&typeOf(get('type'))!==legacyType)throw new Error('原请求的类型不可改变');
  const platformsText=get('platforms').trim(),all=!platformsText||/^(所有|所有平台|全部|all platforms)$/i.test(platformsText);
- const platforms=all?[...(settings.platforms[type]||[])]:platformsText.split('、').map(value=>aliases[value.trim().toLowerCase()]);
- if(!platforms.length||platforms.some(p=>!registry[type].platforms.includes(p))||new Set(platforms).size!==platforms.length)throw new Error('平台：目标为空、重复或不支持该类型，请明确选择');
+ const supported=inferred?supportedMediaPlatforms(type==='video'?{videoPath:videos[0]}:{images},registry):registry[type].platforms;
+ const defaults=inferred?(settings.platforms.media||[...new Set([...(settings.platforms.video||[]),...(settings.platforms.dynamic||[])])]):settings.platforms[type];
+ const platforms=all?[...(defaults||[])].filter(p=>!inferred||supported.includes(p)):platformsText.split('、').map(value=>aliases[value.trim().toLowerCase()]);
+ if(!platforms.length||platforms.some(p=>!supported.includes(p))||new Set(platforms).size!==platforms.length)throw new Error('平台：目标为空、重复或不支持当前媒体，请明确选择');
  const profileText=get('profile').trim(),profile=!profileText||/^(默认|default)$/i.test(profileText)?settings.profile:profileText;
  for(const [name,lines] of Object.entries(fields))if(!['body','media'].includes(name)&&!name.endsWith('.body')&&lines.length>1)errors.push('字段必须在一行内：'+name);
  const parseTags=(value,name)=>{
@@ -58,17 +65,17 @@ export function parseTemplate(text,settings,registry){
  };
  const body=type==='video'&&none(get('body'))?'':get('body'),tags=fields.tags?parseTags(get('tags'),'标签'):[];
  if(!fields.tags)errors.push('标签：请填写标签，或明确写“无”');
- const pkg=type==='video'?{type,title:get('title'),description:body,tags,bilibiliAllowedAutoTags:[]}:{type,text:body,tags};
- if(type==='dynamic'&&get('title')&&!none(get('title'))){if(platforms.includes('xiaohongshu'))pkg.platforms={xiaohongshu:{title:get('title')}};else errors.push('动态独立标题仅支持已选择的小红书');}
- const media=get('media').split('\n').map(v=>v.trim().replace(/^(['"])(\/.*)\1$/, '$2')).filter(Boolean),videos=media.filter(v=>/\.(mp4|m4v|mov)$/i.test(v)),images=media.filter(v=>/\.(png|jpe?g)$/i.test(v));
+ const pkg=type==='video'?{type,title:inferred&&none(get('title'))?'':get('title'),description:body,tags,bilibiliAllowedAutoTags:[]}:{type,text:body,tags};
+ if(inferred&&type==='dynamic'&&get('title')&&!none(get('title')))pkg.title=get('title');
+ if(!inferred&&type==='dynamic'&&get('title')&&!none(get('title'))){if(platforms.includes('xiaohongshu'))pkg.platforms={xiaohongshu:{title:get('title')}};else errors.push('动态独立标题仅支持已选择的小红书');}
  if(media.some(v=>!path.isAbsolute(v)))errors.push('媒体：每行必须是一个完整的本地绝对路径');
- if(media.length!==videos.length+images.length||videos.length>1||videos.length&&images.length||type==='video'&&media.length&&videos.length!==1)errors.push('媒体：只支持一段视频或动态的多张 JPEG/PNG，不得混选');
+ if(media.length!==videos.length+images.length||videos.length>1||videos.length&&images.length||type==='video'&&media.length&&videos.length!==1)errors.push('媒体：只支持一段视频或多张 JPEG/PNG，不得混选');
  if(videos.length===1&&!images.length)pkg.videoPath=videos[0];else if(type==='dynamic')pkg.images=images;
  if(type==='video')pkg.cover={uploadCustomCover:true};
  if(fields.cover){
   const cover=get('cover').trim();
   if(!cover||/^(默认|default)$/i.test(cover)){if(type==='video')pkg.cover={uploadCustomCover:true};}
-  else if(type==='dynamic')errors.push('动态不支持自定义封面');
+  else if(type==='dynamic')errors.push(inferred?'图文不支持自定义封面':'动态不支持自定义封面');
   else if(!path.isAbsolute(cover)||!/\.(png|jpe?g)$/i.test(cover))errors.push('封面：必须为本地 JPEG/PNG 的绝对路径或“默认”');
   else pkg.cover={uploadCustomCover:true,sourcePath:cover};
  }
@@ -78,14 +85,15 @@ export function parseTemplate(text,settings,registry){
  for(const name of Object.keys(fields).filter(n=>n.includes('.'))){
   const [platform,field]=name.split('.'),value=field==='tags'?parseTags(get(name),name):get(name);
   if(!platforms.includes(platform)){errors.push('未选择平台的专属字段：'+name);continue;}
-  if(type==='video'){
+  if(type==='video'&&(!inferred||registry.video.platforms.includes(platform))){
    const key={title:videoTitles,body:videoBodies,tags:videoTags}[field][platform];
    if(!key){errors.push('该入口不支持字段：'+name);continue;}
    pkg[key]=field==='body'&&none(value)?'':value;
-  }else if(field==='title'&&platform!=='xiaohongshu')errors.push('动态独立标题仅支持小红书');
+  }else if(field==='title'&&platform!=='xiaohongshu')errors.push(inferred?'该平台没有独立标题字段':'动态独立标题仅支持小红书');
   else{pkg.platforms??={};pkg.platforms[platform]??={};pkg.platforms[platform][field==='body'?'text':field]=field==='title'&&none(value)?'':value;}
  }
  if(type==='video'&&platforms.length===1&&platforms[0]==='xiaohongshu'&&body)errors.push('小红书独立视频不写正文；请确认不使用正文后将正文填“无”');
+ if(inferred)pkg.type='media';
  return {pkg,platforms,profile,autoPublish,errors:[...new Set(errors)]};
 }
 
@@ -118,10 +126,10 @@ export function expandRequest(argv,{registry,stateHome,configFile}){
    if(previous?.locked||sessionFile&&fs.existsSync(sessionFile)&&readJson(sessionFile).fingerprint)throw new Error('已开始配置的请求不可改包；使用原 Job ID 恢复');
    const settings=previous?.settings||configuration(configFile,registry).configuration;
    const text=fs.readFileSync(values['--input']==='-'?0:path.resolve(values['--input']),'utf8');
-   const parsed=parseTemplate(text,settings,registry);
-   const video=parsed.pkg.type==='video'?(previous?.videoConfig||loadVideoConfig()):null;
+   const parsed=parseTemplate(text,settings,registry,{legacyType:previous&&previous.scope.type!=='media'?previous.scope.type:undefined});
+   const video=(parsed.pkg.type==='video'||parsed.pkg.type==='media'&&mediaKind(parsed.pkg)==='video')?(previous?.videoConfig||loadVideoConfig()):null;
    const pkg=video?withEffectivePackage(parsed.pkg,video):parsed.pkg;
-   const scope={type:pkg.type,platforms:parsed.platforms,profile:parsed.profile,stateRoot:path.resolve(previous?.scope.stateRoot||values['--state-root']||path.join(stateHome,pkg.type+'-jobs'))};
+   const scope={type:pkg.type,...(pkg.type==='media'?{mediaKind:mediaKind(pkg)}:{}),platforms:parsed.platforms,profile:parsed.profile,stateRoot:path.resolve(previous?.scope.stateRoot||values['--state-root']||path.join(stateHome,pkg.type+'-jobs'))};
    if(previous&&!isDeepStrictEqual(scope,previous.scope))throw new Error('原请求的类型、平台或 Profile 不可改变');
    context={schemaVersion:1,jobId:id,scope,autoPublish:parsed.autoPublish,settings,videoConfig:video,packagePath:path.join(directory,'package.json'),packageDigest:digest(pkg),inputErrors:parsed.errors,requestPath:file};
    if(video){context.videoConfigPath=path.join(directory,'video-config.json');writeJson(context.videoConfigPath,video);}
