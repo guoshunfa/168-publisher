@@ -17,6 +17,13 @@ test('Template preserves user text, ordered paths with spaces and delimiter-only
  assert.deepEqual(value.pkg.tags,['AI 工具','发布']);assert.deepEqual(value.platforms,['x','weibo','jike']);assert.equal(value.profile,'账号 A');assert.deepEqual(value.errors,[]);
  assert.equal(parseTemplate(template.replace('正文：第一行','正文：none'),settings,entries).pkg.text.startsWith('none'),true);
 });
+test('All targets and matching outer path quotes work without changing literal filename characters',()=>{
+ const input=template.replace('X、微博、即刻','所有').replace('/tmp/a b.png',"'/tmp/a b.png'").replace('/tmp/c.png','"/tmp/it\'s c.png"');
+ const value=parseTemplate(input,settings,entries);
+ assert.deepEqual(value.errors,[]);assert.deepEqual(value.platforms,settings.platforms.dynamic);
+ assert.deepEqual(value.pkg.images,['/tmp/a b.png',"/tmp/it's c.png"]);
+ assert.ok(parseTemplate(input.replace("'/tmp/a b.png'","'/tmp/a b.png\""),settings,entries).errors.length);
+});
 test('English and legacy template aliases map without generating content',()=>{
  const p=parseTemplate('Type: video\nTitle: title\nBody: body\nTags: one、two\nMedia: /tmp/a.mp4\nPlatforms: Xiaohongshu、Douyin、Bilibili、WeChat Channels、YouTube\nWeChat Short Title: 六个字的短标题\nYouTube Audience: made_for_kids\nBilibili Title: custom\nYouTube Body: exact\nCover: default',settings,entries);
  assert.deepEqual(p.platforms,settings.platforms.video);assert.equal(p.pkg.wechatShortTitle,'六个字的短标题');assert.equal(p.pkg.bilibiliTitle,'custom');assert.equal(p.pkg.youtubeDescription,'exact');assert.deepEqual(p.pkg.cover,{uploadCustomCover:true});assert.equal(p.pkg.aiGenerated,undefined);assert.deepEqual(p.errors,[]);

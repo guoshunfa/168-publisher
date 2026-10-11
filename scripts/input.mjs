@@ -9,7 +9,7 @@ import {acquireJobLock} from '../assets/vendor/video-publisher/scripts/v2/lib/jo
 
 export const platformNames={x:'X',weibo:'微博',xiaohongshu:'小红书',jike:'即刻',douyin:'抖音',bilibili:'B站',wechat_channels:'视频号',youtube:'YouTube'};
 const aliases={x:'x',weibo:'weibo','微博':'weibo',xiaohongshu:'xiaohongshu','小红书':'xiaohongshu',jike:'jike','即刻':'jike',douyin:'douyin','抖音':'douyin',bilibili:'bilibili','b站':'bilibili',wechat_channels:'wechat_channels','wechat channels':'wechat_channels','视频号':'wechat_channels',youtube:'youtube'};
-const fieldNames={'类型':'type',type:'type','标题':'title',title:'title','正文':'body',body:'body','内容':'content','标签':'tags',tags:'tags','媒体':'media',media:'media','封面':'cover',cover:'cover','平台':'platforms',platforms:'platforms',profile:'profile','视频号短标题':'shortTitle','wechat short title':'shortTitle','儿童受众':'audience','youtube儿童受众':'audience','youtube audience':'audience','ai生成':'aiGenerated','ai generated':'aiGenerated','原创':'original',original:'original'};
+const fieldNames={'是否全自动':'autoPublish','auto publish':'autoPublish','类型':'type',type:'type','标题':'title',title:'title','正文':'body',body:'body','内容':'content','标签':'tags',tags:'tags','媒体':'media',media:'media','封面':'cover',cover:'cover','平台':'platforms',platforms:'platforms',profile:'profile','视频号短标题':'shortTitle','wechat short title':'shortTitle','儿童受众':'audience','youtube儿童受众':'audience','youtube audience':'audience','ai生成':'aiGenerated','ai generated':'aiGenerated','原创':'original',original:'original'};
 const videoTitles={xiaohongshu:'xhsTitle',douyin:'douyinTitle',bilibili:'bilibiliTitle',wechat_channels:'wechatTitle',youtube:'youtubeTitle'};
 const videoBodies={douyin:'douyinDescription',bilibili:'bilibiliDescription',wechat_channels:'wechatDescription',youtube:'youtubeDescription'};
 const videoTags={xiaohongshu:'xhsTopics',douyin:'douyinTopics',bilibili:'bilibiliTags',wechat_channels:'wechatTags',youtube:'youtubeTags'};
@@ -42,8 +42,11 @@ export function parseTemplate(text,settings,registry){
   else fields.body=fields.content;
   delete fields.content;
  }
+ const autoValue=get('autoPublish').trim();
+ if(fields.autoPublish&&!['是','否','yes','no'].includes(autoValue.toLowerCase()))errors.push('是否全自动：只能填写“是”或“否”');
+ const autoPublish=['是','yes'].includes(autoValue.toLowerCase());
  const type=typeOf(get('type'));if(!type||!registry[type])throw new Error('类型：请明确填写视频或动态');
- const platformsText=get('platforms').trim(),all=!platformsText||/^(所有平台|全部|all platforms)$/i.test(platformsText);
+ const platformsText=get('platforms').trim(),all=!platformsText||/^(所有|所有平台|全部|all platforms)$/i.test(platformsText);
  const platforms=all?[...(settings.platforms[type]||[])]:platformsText.split('、').map(value=>aliases[value.trim().toLowerCase()]);
  if(!platforms.length||platforms.some(p=>!registry[type].platforms.includes(p))||new Set(platforms).size!==platforms.length)throw new Error('平台：目标为空、重复或不支持该类型，请明确选择');
  const profileText=get('profile').trim(),profile=!profileText||/^(默认|default)$/i.test(profileText)?settings.profile:profileText;
@@ -57,7 +60,7 @@ export function parseTemplate(text,settings,registry){
  if(!fields.tags)errors.push('标签：请填写标签，或明确写“无”');
  const pkg=type==='video'?{type,title:get('title'),description:body,tags,bilibiliAllowedAutoTags:[]}:{type,text:body,tags};
  if(type==='dynamic'&&get('title')&&!none(get('title'))){if(platforms.includes('xiaohongshu'))pkg.platforms={xiaohongshu:{title:get('title')}};else errors.push('动态独立标题仅支持已选择的小红书');}
- const media=get('media').split('\n').map(v=>v.trim()).filter(Boolean),videos=media.filter(v=>/\.(mp4|m4v|mov)$/i.test(v)),images=media.filter(v=>/\.(png|jpe?g)$/i.test(v));
+ const media=get('media').split('\n').map(v=>v.trim().replace(/^(['"])(\/.*)\1$/, '$2')).filter(Boolean),videos=media.filter(v=>/\.(mp4|m4v|mov)$/i.test(v)),images=media.filter(v=>/\.(png|jpe?g)$/i.test(v));
  if(media.some(v=>!path.isAbsolute(v)))errors.push('媒体：每行必须是一个完整的本地绝对路径');
  if(media.length!==videos.length+images.length||videos.length>1||videos.length&&images.length||type==='video'&&media.length&&videos.length!==1)errors.push('媒体：只支持一段视频或动态的多张 JPEG/PNG，不得混选');
  if(videos.length===1&&!images.length)pkg.videoPath=videos[0];else if(type==='dynamic')pkg.images=images;
@@ -83,7 +86,7 @@ export function parseTemplate(text,settings,registry){
   else{pkg.platforms??={};pkg.platforms[platform]??={};pkg.platforms[platform][field==='body'?'text':field]=field==='title'&&none(value)?'':value;}
  }
  if(type==='video'&&platforms.length===1&&platforms[0]==='xiaohongshu'&&body)errors.push('小红书独立视频不写正文；请确认不使用正文后将正文填“无”');
- return {pkg,platforms,profile,errors:[...new Set(errors)]};
+ return {pkg,platforms,profile,autoPublish,errors:[...new Set(errors)]};
 }
 
 // The stored request owns package, platform order and defaults; continuation must not reconstruct them from new settings.
@@ -120,13 +123,13 @@ export function expandRequest(argv,{registry,stateHome,configFile}){
    const pkg=video?withEffectivePackage(parsed.pkg,video):parsed.pkg;
    const scope={type:pkg.type,platforms:parsed.platforms,profile:parsed.profile,stateRoot:path.resolve(previous?.scope.stateRoot||values['--state-root']||path.join(stateHome,pkg.type+'-jobs'))};
    if(previous&&!isDeepStrictEqual(scope,previous.scope))throw new Error('原请求的类型、平台或 Profile 不可改变');
-   context={schemaVersion:1,jobId:id,scope,settings,videoConfig:video,packagePath:path.join(directory,'package.json'),packageDigest:digest(pkg),inputErrors:parsed.errors,requestPath:file};
+   context={schemaVersion:1,jobId:id,scope,autoPublish:parsed.autoPublish,settings,videoConfig:video,packagePath:path.join(directory,'package.json'),packageDigest:digest(pkg),inputErrors:parsed.errors,requestPath:file};
    if(video){context.videoConfigPath=path.join(directory,'video-config.json');writeJson(context.videoConfigPath,video);}
    writeJson(context.packagePath,pkg);writeJson(file,context);
   }else if(!context)throw new Error('未找到保存的请求；旧 JSON 任务请沿用 --package 与原参数');
   if(values['--state-root']&&path.resolve(values['--state-root'])!==context.scope.stateRoot)throw new Error('原请求的状态目录不可改变');
   if(!registry[context.scope.type]||context.scope.platforms.some(p=>!registry[context.scope.type].platforms.includes(p)))throw new Error('保存的请求不适用于当前版本');
-  if(command==='run'&&!flags.includes('--resume-control'))throw new Error('确认内容后使用 --resume-control 继续原请求');
+  if(command==='run'&&context.autoPublish!==true&&!flags.includes('--resume-control'))throw new Error('确认内容后使用 --resume-control 继续原请求');
   const expanded=[command,'--package',context.packagePath,'--platforms',context.scope.platforms.join(','),'--job-id',id,'--state-root',context.scope.stateRoot,...(context.scope.profile?['--profile',context.scope.profile]:[]),...flags];
   return {argv:expanded,context,release};
  }catch(error){release();throw error;}

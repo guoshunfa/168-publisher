@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {request,argumentsFor,compactResult,execute,precreatePagesScript,reviewHandoffScript,runFingerprint} from '../scripts/publisher.mjs';
+import {request,argumentsFor,compactResult,execute,precreatePagesScript,preparationLoginCheckScript,reviewHandoffScript,runFingerprint} from '../scripts/publisher.mjs';
 
 const result=value=>({code:0,stdout:JSON.stringify(value),stderr:''});
 const checked=(type,platform)=>result(type==='video'?{ok:true,platform}:{status:'input_checked'});
@@ -41,6 +41,61 @@ test('Login and field failures remain explicit; later tabs are configured and pa
 test('Actual user takeover stops actions without reclaiming control or beginning another tab',async()=>{
  const reports=await execute(options('dynamic',['x','weibo']),async(job,phase)=>phase==='check'?checked('dynamic',job.platform):result({error:'USER_CONTROL: user now controls'}));
  assert.equal(reports.weibo.status,'not_started');
+});
+
+test('Takeover in preparation error, reason or blocker stops automatic publication of earlier configured tabs',async()=>{
+ for(const signal of [{error:'USER_CONTROL: user now controls'},{reason:'user-controlled space'},{blocker:{code:'USER_CONTROL',message:'Original space requires user control'}}]){
+  const plan=options('dynamic',['x','weibo','jike']);plan.autoPublish=true;
+  const calls=[];
+  const reports=await execute(plan,async(job,phase)=>{
+   calls.push(job.platform+':'+phase);
+   return phase==='check'?checked('dynamic',job.platform):job.platform==='x'?configured():result({status:'needs_user',finalPublishClicked:false,...signal});
+  },undefined,{afterPreparation:()=>assert.fail('Takeover must stop before automatic inspection, publishing or handoff')});
+  assert.equal(reports.x.configurationComplete,true);
+  assert.equal(reports.weibo.status,'needs_user');
+  assert.equal(reports.jike.status,'not_started');
+  assert.ok(!calls.includes('jike:prepare'));
+ }
+});
+
+test('Automatic recovery checks login only for unconfigured jobs and leaves filled or published pages to their observers',async()=>{
+ const plan=options('dynamic',['x','weibo','xiaohongshu','jike']);plan.autoPublish=true;
+ plan.previousResults={
+  x:{jobId:'case-x',configurationComplete:true},
+  xiaohongshu:{jobId:'other-job',configurationComplete:true},
+  jike:{jobId:'case-jike',configurationComplete:false},
+ };
+ plan.publications={weibo:{status:'submitted',finalPublishClicked:true}};
+ const session={name:'fixture',taskSpaceId:65,pages:{x:'p1',weibo:'p2',xiaohongshu:'p3',jike:'p4'}},checkedPages=[],output=[];
+ const task={name:'fixture',page:label=>{
+  checkedPages.push(label);
+  assert.ok(!['p1','p2'].includes(label),'Do not read filled text such as 我的安全验证经验 or a publication result as a login hint');
+  return {waitForFunction:async()=>{},evaluate:async()=>({status:label==='p4'?'needs_login':'login_checked'})};
+ }};
+ await vm.runInNewContext('(async()=>{'+preparationLoginCheckScript(plan,session)+'})()',{taskSpace:async()=>task,console:{log:line=>output.push(line)}});
+ assert.deepEqual(checkedPages,['p3','p4']);
+ const report=JSON.parse(output[0].split('168_PUBLISHER_RESULT:')[1]);
+ assert.deepEqual(Object.keys(report.platforms),['xiaohongshu','jike']);
+ assert.equal(report.platforms.jike.status,'needs_login');
+});
+
+test('A resumed configured job keeps preparation evidence but clears old blockers before fresh automatic verification',async()=>{
+ const plan=options('dynamic',['x']);plan.autoPublish=true;
+ plan.previousResults={x:{jobId:'case',status:'needs_user',configurationComplete:true,evidencePath:'/private/prepared.json',error:'USER_CONTROL',reason:'user now controls',blocker:'USER_CONTROL'}};
+ let resumed=false,verified=false;
+ await execute(plan,async(job,phase)=>{
+  assert.equal(phase,'check','The prepared job must not be prepared again');
+  return checked('dynamic',job.platform);
+ },undefined,{
+  beforePreparation:async()=>{resumed=true;},
+  afterPreparation:async results=>{
+   assert.equal(resumed,true);
+   assert.equal(results.x.configurationComplete,true);assert.equal(results.x.evidencePath,'/private/prepared.json');
+   for(const key of ['error','reason','blocker'])assert.equal(results.x[key],undefined);
+   verified=true;
+  },
+ });
+ assert.equal(verified,true);assert.equal(plan.previousResults.x.error,'USER_CONTROL');
 });
 
 test('Configured requires a successful action receipt and never implies completed upload or publication',()=>{

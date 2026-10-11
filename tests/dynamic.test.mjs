@@ -316,7 +316,7 @@ test('XHS title and topic entities are platform-specific; graphics require image
 });
 
 test('XHS checks committed text, real topics, original image/video bytes and completed native IDs',async()=>{
- for(const mode of ['ready','plainHashtag','uncommitted','wrongTitle','wrongImage','pending','missingId','disabled','private','scheduled','video-ready','video-pending','video-file','video-blob','video-id','video-info']){
+ for(const mode of ['ready','reencoded','changedPixels','changedDimensions','changedReceipt','pixelPending','plainHashtag','uncommitted','wrongTitle','wrongImage','pending','missingId','disabled','private','scheduled','video-ready','video-pending','video-file','video-blob','video-id','video-info']){
   const videoMode=mode.startsWith('video-');
   const rect=()=>({width:20,height:20});
   const doc={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'hello'}]},{type:'paragraph'},{type:'paragraph',content:mode==='plainHashtag'?[{type:'text',text:'#软件'}]:[{type:'topic',attrs:{data:{id:'topic-id',name:'软件'}}},{type:'text',text:'\u00a0'}]}]};
@@ -327,6 +327,12 @@ test('XHS checks committed text, real topics, original image/video bytes and com
   const button={getAttribute:k=>({'submit-text':'发布','submit-disabled':mode==='disabled'?'true':'false','submit-loading':'false'}[k])};
   const vnode={component:{props:{state:{imgList:{_object:store}}},subTree:null}};
   const guard={version:3,armed:true,fingerprint:'id',blockedAttempts:[],files:[{sha256:'image',size:3}],blobs:{'blob:image':{sha256:mode==='wrongImage'?'other':'image'}}};
+  if(['reencoded','changedPixels','changedDimensions','changedReceipt','pixelPending'].includes(mode)){
+   Object.assign(guard.files[0],{pixelSha256:'pixels',width:1,height:1});
+   Object.assign(guard.blobs['blob:image'],{sha256:'encoded',size:4,pixelSha256:mode==='changedPixels'?'other':'pixels',width:mode==='changedDimensions'?2:1,height:1,pending:mode==='pixelPending'});
+   store.imgList[0].file.size=4;
+   if(mode==='changedReceipt')guard.files[0].sha256='foreign';
+  }
   if(videoMode){
    Object.assign(store,{imgList:[],videoFile:new File([mode==='video-file'?'other':'video'],'clip.mp4'),videoBlobUrl:'blob:video',video:{fileid:mode==='video-id'?'':'spectrum/video',videoId:'video-id',fsize:5,width:1280,height:720,duration:36.7},videoInfo:{Width:1280,Height:mode==='video-info'?100:720,Duration:36.7},coverUrl:'https://native/cover',isVideoReady:mode!=='video-pending',uploadPercent:mode==='video-pending'?50:100,publishType:0,hasBeenPublished:false,isPublishing:false});
    guard.files=[{sha256:sha256('video'),size:5,pending:false}];guard.blobs['blob:video']={sha256:mode==='video-blob'?'other':sha256('video'),size:5,pending:false};
@@ -335,8 +341,8 @@ test('XHS checks committed text, real topics, original image/video bytes and com
   const document={querySelector:s=>s.startsWith('input[placeholder')?title:s==='.publish-page-content-base'?root:s.startsWith('.cover-plugin-preview')?{}:null,querySelectorAll:s=>s.startsWith('.tiptap')?[editor]:s==='[data-v-app]'?[app]:s.startsWith('.format-img')?(videoMode?[]:[image]):s.startsWith('xhs-publish-btn')?[button]:[],createElement:()=>({innerHTML:'',content:{querySelectorAll:()=>textBlocks}})};
   const context=vm.createContext({window:{__168_PUBLISHER_XHS__:guard},document,File,crypto:webcrypto,Array,Uint8Array,getComputedStyle:()=>({visibility:'visible',opacity:'1',backgroundImage:'url(https://native/cover)'}),location:{hostname:'creator.xiaohongshu.com',pathname:'/publish/publish'},Date});
   const observation=await vm.runInContext(`(${observeXhs.toString()})(${JSON.stringify({text:'hello',title:'title',tags:['软件'],...(videoMode?{videoPath:'/clip.mp4'}:{}),assets:videoMode?[{sha256:sha256('video'),size:5}]:[{sha256:'image',size:3}],fingerprint:'id',account:'account'})})`,context);
-  assert.equal(dynamicVerdict(observation).ready,['ready','video-ready'].includes(mode),mode);
-  if(mode==='video-pending')assert.equal(dynamicVerdict(observation).status,'processing');
+  assert.equal(dynamicVerdict(observation).ready,['ready','reencoded','video-ready'].includes(mode),mode);
+  if(['video-pending','pixelPending'].includes(mode))assert.equal(dynamicVerdict(observation).status,'processing');
  }
 });
 

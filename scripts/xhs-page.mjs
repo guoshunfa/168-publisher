@@ -38,8 +38,9 @@ export async function observeXhs(expected) {
   const images = [...document.querySelectorAll('.format-img img.preview')].filter(visible).map((node, index) => {
     const item = items[index], original = guard?.blobs[item?.url];
     return { src: node.src, width: node.naturalWidth, height: node.naturalHeight, loaded: node.complete && node.naturalWidth > 0,
-      sha256: guard?.blobs[node.src]?.sha256 || '', media: item && { count: items.length, currentUrl: item.url,
+      sha256: guard?.blobs[node.src]?.sha256 || '', pixelSha256: original?.pixelSha256 || '', media: item && { count: items.length, currentUrl: item.url,
         originalSha256: original && !original.pending && !original.error ? original.sha256 || '' : '', originalSize: item.file?.size,
+        pixelWidth: original?.width, pixelHeight: original?.height,
         uploadId: item.fileId || '', status: item.status, progress: item.progress } };
   });
   let doc = null;
@@ -64,10 +65,19 @@ export async function observeXhs(expected) {
   const storedBlocks = [...template.content.querySelectorAll('p')];
   const displayedBlocks = [...(editor?.querySelectorAll('p') || [])];
   const htmlMatches = storedBlocks.length === displayedBlocks.length && storedBlocks.every((block, index) => block.textContent === displayedBlocks[index].textContent);
-  const ordered = items.length === expected.assets.length && images.length === expected.assets.length && images.every((image, index) => image.loaded
-    && image.sha256 === expected.assets[index].sha256 && image.media?.originalSha256 === expected.assets[index].sha256
-    && image.media.originalSize === expected.assets[index].size && image.src === image.media.currentUrl);
+  const ordered = items.length === expected.assets.length && images.length === expected.assets.length && images.every((image, index) => {
+    const asset = expected.assets[index], file = files[index], blob = guard?.blobs[image.src];
+    const sameBytes = image.sha256 === asset.sha256 && image.media?.originalSha256 === asset.sha256 && image.media.originalSize === asset.size;
+    // XHS may re-encode an image without changing its pixels; file receipts still bind it to the original input.
+    const samePixels = !!file?.pixelSha256 && file.pixelSha256 === image.pixelSha256 && !blob?.pending && !blob?.error
+      && image.width === file.width && image.height === file.height
+      && image.media?.pixelWidth === file.width && image.media?.pixelHeight === file.height
+      && blob?.size === image.media?.originalSize;
+    return image.loaded && image.src === image.media?.currentUrl && (sameBytes || samePixels);
+  });
   const receipts = files.length === expected.assets.length && files.every((file, index) => !file.pending && !file.error && file.sha256 === expected.assets[index].sha256 && file.size === expected.assets[index].size);
+  const mediaPending = files.length === expected.assets.length && expected.assets.length > 0
+    && (files.some(file => file.pending && !file.error) || images.some(image => guard?.blobs[image.src]?.pending && !guard.blobs[image.src].error));
   const videoFile=store?.videoFile,video=store?.video;
   const videoCache=guard?(guard.nativeFiles||=new WeakMap()):new WeakMap();
   let videoSha256='';
@@ -115,7 +125,7 @@ export async function observeXhs(expected) {
     gates.upload=!!buttonReady&&errors.length===0&&store?.isVideoReady===true&&Number(store?.uploadPercent)===100&&!!video?.fileid&&!!videoMedia.coverMatches;
   }
   return { observedAt: new Date().toISOString(), account, title: titleInput?.value || '', text, editorText: store?.desc ?? (uploadPage ? '' : null), nativeDesc, descLength: store?.descLength,
-    topics, images, videos: document.querySelectorAll('.publish-page-content-base video').length, videoPreviews:videoMedia?[{media:videoMedia}]:[], files, errors, gates,
+    topics, images, videos: document.querySelectorAll('.publish-page-content-base video').length, videoPreviews:videoMedia?[{media:videoMedia}]:[], files, errors, gates, mediaPending,
     finalPublishClicked: false, blockedAttempts: guard?.blockedAttempts.length ?? null, button: button && { text: button.getAttribute('submit-text'), disabled: !buttonReady, closedComponent: true } };
 }
 

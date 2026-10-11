@@ -319,6 +319,7 @@ export async function main(argv = process.argv.slice(2)) {
   const lock = { directory, release };
   let publisherRelease = () => {};
   try {
+    if(fs.existsSync(path.join(jobDir,'publication.json')))throw new Error('Publication already attempted; check original page, do not resend');
     const controlPath = path.join(jobDir, "manual-control.json");
     const control = fs.existsSync(controlPath) ? readJson(controlPath) : {};
     if (command === "prepare" && Object.keys(control.handoffs || {}).length) throw new Error("Job already handed off or its result is unknown; do not resend");

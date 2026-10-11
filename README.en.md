@@ -2,16 +2,16 @@
 
 # 168 Publisher
 
-Current version: `0.0.23`.
+Current version: `0.0.26`.
 
-A local AI Skill for developers and content creators: **prepare one set of text and assets for multiple platforms, use different accounts through Profiles, and publish manually after review.**
+A local AI Skill for developers and content creators: **prepare one set of text and assets for multiple platforms, use different accounts through Profiles, and publish manually by default or enable automatic publication for this request.**
 
 - **Less repeated work:** supply your title, body, tags, and assets once. After confirmation, the Skill fills in each platform and submits your files.
 - **Multiple accounts through Profiles:** keep different account sessions in separate Ego Profiles. Switch to the target Profile in Ego, then run a separate task with `Profile: name`. The Skill checks the active Profile; it does not switch accounts automatically.
 - **Checks before execution:** check login, required content, and supported media specifications together. Resolve reported issues and confirm before filling or uploading begins.
-- **Manual control over publishing:** all prepared pages are handed back for you to review and adjust. The Skill never clicks the final publish button automatically.
+- **Two publishing modes:** `Auto publish: no` keeps review and manual final submission. `yes` continues through verification and final publication, pausing only for problems.
 - **Resume the original job:** after resolving login or field issues, continue in the original job and pages. Configured, handed-off platforms are skipped, and uncertain file submissions are not automatically retried.
-- **Source you can customize:** first-party code uses the [MIT license](LICENSE), so you can adapt platform support and workflows. If you need automatic publishing, you can modify the source to add final submission; the current version has no automatic-publishing switch.
+- **Source you can customize:** first-party code uses the [MIT license](LICENSE), so you can adapt platform support and workflows. The template includes a per-request automatic-publishing switch, disabled by default.
 
 | Content | Supported platforms |
 | --- | --- |
@@ -37,10 +37,11 @@ After installation, you should be able to call `$168-publisher`. Tools without t
 
 **Template**
 
-Replace `<...>` and send the whole block to your AI. Put one local absolute path per media line, without numbering or quotation marks. Add lines for multiple images.
+Replace `<...>` and send the whole block to your AI. Put one local absolute path per media line, without numbering; matching outer single or double quotes are accepted. Add lines for multiple images.
 
 ```md
 $168-publisher
+Auto publish: no
 Type: <post or video>
 Title: <title, or none>
 Body: <post text or video description>
@@ -53,6 +54,7 @@ Platforms: <platform IDs separated by 、>
 
 - **Title and body:** videos require a title. Only Xiaohongshu posts support a title; use `none` for other post platforms. Post text is required; use `none` for an unused video description.
 - **Cover:** For videos, `default`, an empty value, or omission extracts the first frame and uploads it to each platform’s cover field. A supplied JPEG/PNG path takes priority and skips frame extraction. Posts do not support custom covers.
+- **Auto publish:** put this above Type. Use `yes` or `no`; omission means `no`. It applies only to the current request and is preserved on resume.
 - **Media:** posts accept one or more JPEG/PNG images, or one MP4, never both. Standalone videos accept one MP4 / M4V / MOV. The standard template does not accept remote URLs.
 - **Tags:** separate names only with `、`, not spaces. Post tag names cannot contain internal whitespace. Standalone Xiaohongshu, Douyin, Bilibili, and WeChat Channels videos require tags; `none` prompts you to supply them.
 - **Platforms:** use `x`, `weibo`, `xiaohongshu`, `jike`, `douyin`, `bilibili`, `wechat_channels`, or `youtube`, separated by `、`, as applicable to the content type. `all platforms` uses that type's saved list; initially it includes every supported platform for that type.
@@ -70,6 +72,7 @@ This post includes one video and targets X and Weibo. Replace the example path w
 
 ```md
 $168-publisher
+Auto publish: no
 Type: post
 Title: none
 Body: I turned my repeated publishing steps into a Skill to reduce form filling and uploads.
@@ -84,13 +87,15 @@ Scripts parse the template directly and preserve your text and asset order. Miss
 
 ## What happens next
 
+The steps below describe the default `no` mode. With `yes`, successful preflight continues automatically without another confirmation. Login, captchas, missing facts, required rights confirmations and failures pause the request. X may retry once after a pointer interception only when no click reached the unchanged, verified button. Xiaohongshu accepts re-encoded images only when original file receipts and decoded pixels match exactly. Sent or unknown outcomes are not automatically retried.
+
 1. **Check login and content:** open all target pages in one Ego space, check login, text, and assets, then show the confirmation list and issues. This stage does not fill in copy or upload files. You handle login, verification, and account selection.
 2. **Configure after confirmation:** reply `继续` (continue) to reuse the original job, space, and pages. The Skill fills in confirmed content and submits assets for each platform.
 3. **Review the pages:** once configuration actions finish, all pages are handed back. Uploading or processing may continue on the platforms. Review the content and click the final send button yourself.
 
 `configured` means field and file-input actions completed. **It does not confirm upload completion, permanent storage, or publication.** Expired logins, permissions, or unavailable fields are reported with the incomplete steps. Resolve them and ask to continue the original job. Unknown file-submission outcomes are not automatically retried.
 
-The current template and recovery flow has simulation tests; this does not establish a complete new-job upload test for every platform. See the [validation scope](references/workflow.md#验证范围) (Chinese) for evidence.
+An earlier four-platform post completed with success receipts, including user-confirmed recovery for X and Xiaohongshu. The updated code has simulation coverage and local Ego browser verification; it has not published another live post. See the [validation scope](references/workflow.md#验证范围) (Chinese) for evidence.
 
 ## Boundaries and defaults
 
@@ -98,7 +103,7 @@ The current template and recovery flow has simulation tests; this does not estab
 - Built-in video defaults include original/self-made content, not made for kids, no paid promotion, no realistic altered content, first-frame video covers, and an empty WeChat short title. **YouTube visibility defaults to public.** Explicit task values override saved settings, then program defaults; the confirmation list shows effective values. AI-generation declarations come only from facts you supply.
 - Some video adapters only support original/self-made content and stop for explicit non-original input. Posts do not support custom covers, polls, scheduling, location, or circle selection. See [platform publishing rules](references/platform-rules.en.md).
 - Preparing content submits the selected text and assets to the target platforms. Keep private assets, configuration, and job records outside the source directory.
-- Local checks do not guarantee platform approval. Unknown specifications and account conditions still require editor checks. Final sending is always manual, and the AI does not poll background processing.
+- Local checks do not guarantee platform approval. Unknown specifications and account conditions still require editor checks. With `no`, final sending remains manual without processing waits. With `yes`, the script waits within a deadline, verifies the original draft, clicks publish, and checks platform feedback. A click alone is not publication success; unknown outcomes are never retried automatically.
 
 ## Configuration and guides
 

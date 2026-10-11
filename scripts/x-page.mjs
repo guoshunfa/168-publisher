@@ -26,7 +26,21 @@ export function armGuard(fingerprint) {
     }
   };
   for (const event of ["click", "keydown", "keyup", "keypress", "submit"]) window.addEventListener(event, stop, true);
-  const hash = async blob => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await blob.arrayBuffer())), b => b.toString(16).padStart(2, "0")).join("");
+  const digest = async bytes => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)), b => b.toString(16).padStart(2, "0")).join("");
+  const hash = async blob => digest(await blob.arrayBuffer());
+  const pixels = async blob => {
+    if (platform !== 'xiaohongshu' || !/^image\/(png|jpeg)$/.test(blob.type)) return {};
+    let bitmap;
+    try {
+      bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      return { pixelSha256: await digest(context.getImageData(0, 0, canvas.width, canvas.height).data), width: canvas.width, height: canvas.height };
+    } catch { return {}; }
+    finally { bitmap?.close(); }
+  };
   const seenChanges = new WeakSet();
   const change = event => {
     const target = event.target;
@@ -36,7 +50,7 @@ export function armGuard(fingerprint) {
     const records = [...target.files].map(file => ({ name: file.name, size: file.size, type: file.type, pending: true }));
     guard.files = records;
     [...target.files].forEach(async (file, index) => {
-      try { records[index].sha256 = await hash(file); records[index].pending = false; }
+      try { Object.assign(records[index], { sha256: await hash(file) }, await pixels(file), { pending: false }); }
       catch { records[index].error = true; }
     });
   };
@@ -45,7 +59,7 @@ export function armGuard(fingerprint) {
   const tracked = function(blob) {
     const url = create.call(URL, blob);
     const receipt = guard.blobs[url] = { size: blob.size, pending: true };
-    hash(blob).then(sha256 => Object.assign(receipt, { sha256, pending: false }), () => { receipt.error = true; });
+    Promise.all([hash(blob), pixels(blob)]).then(([sha256, proof]) => Object.assign(receipt, { sha256, ...proof, pending: false }), () => { receipt.error = true; });
     return url;
   };
   URL.createObjectURL = tracked;

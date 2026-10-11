@@ -30,6 +30,7 @@ export function dynamicVerdict(observation, state = {}) {
     : !gates.noBlockingDialog ? observation.rateLimited === true ? "processing" : "needs_user"
     : previewPending ? "processing"
     : canResumePreparation ? "processing"
+    : observation.mediaPending === true ? "processing"
     : !gates.media ? "result_unknown"
     : !gates.upload ? "processing" : "failed";
   const waitingFor = status === 'processing' && observation.rateLimited === true ? 'rate_limit'
@@ -94,6 +95,7 @@ export async function main(argv = process.argv.slice(2)) {
     return verdict;
   };
   try {
+    if(options.command!=='check'&&fs.existsSync(path.join(jobDir,'publication.json')))throw new Error('Publication already attempted; check original page, do not resend');
     if(audit?.errors.length){console.log(JSON.stringify({status:'failed',audit,errors:audit.errors},null,2));process.exitCode=1;return;}
     if (!state) normalizeDynamic(raw, path.dirname(packagePath), options.platform);
     if (state?.handoff && options.command !== 'check') throw new Error("Already handed off or handoff result unknown; check original page, do not resend");

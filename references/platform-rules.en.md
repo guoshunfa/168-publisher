@@ -74,7 +74,7 @@ Unknown pixel/aspect-ratio requirements still need target-editor confirmation. I
 - Video defaults: not made for kids, no paid promotion, no realistic altered content, public YouTube visibility, standard license, embedding and subscriber notifications enabled; empty category/language/playlist; original/self-made content, first-frame video cover, empty WeChat short title. Explicit task values override saved preferences, then built-in defaults. `aiGenerated` comes only from user facts or preferences, not titles, tags or filenames.
 - Current standalone Xiaohongshu/Bilibili/WeChat adapters use an originality/self-made path. Explicit non-original content is rejected, not silently changed. Posts have no shared originality/AI-declaration interface.
 - You manually log into WeChat Channels and select the account in the first stage. Captchas, permissions, risk-control prompts and unsupported required fields stop the workflow. The program does not invent facts, guess accounts or select a Bilibili category automatically.
-- Post location, polls, scheduling, paid visibility, circle selection and standalone content declarations are unsupported. Final publication for every platform remains manual.
+- Post location, polls, scheduling, paid visibility, circle selection and standalone content declarations are unsupported. Final publication is manual by default; `Auto publish: yes` authorizes verified final submission for this request.
 - Recovery preserves the original content, media, platform, account association and effective settings. Changed identity or unknown upload outcomes stop the workflow; new defaults do not rewrite old tasks and no replacement copy is created automatically.
 
 ## Sources and their scope
