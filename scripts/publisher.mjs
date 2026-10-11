@@ -143,7 +143,7 @@ for(const label of Object.values(session.pages||{})){
   const page=task.page(label);
   if(!${protectedContent})guardWarnings.push(...await page.evaluate(()=>{
     const warnings=[];
-    for(const key of ['__VIDEO_PUBLISHER_FINAL_GUARD__','__168_PUBLISHER_X__','__168_PUBLISHER_WEIBO__','__168_PUBLISHER_XHS__','__168_PUBLISHER_JIKE__']){
+    for(const key of ['__VIDEO_PUBLISHER_FINAL_GUARD__','__168_PUBLISHER_X__','__168_PUBLISHER_WEIBO__','__168_PUBLISHER_XHS__','__168_PUBLISHER_JIKE__','__168_PUBLISHER_IMAGE__']){
       const guard=window[key];if(!guard?.armed)continue;
       try{const released=(guard.releaseForConfirmedPublish||guard.release)?.call(guard);if(!released?.ok)throw new Error('Guard release rejected');}
       catch{guard.armed=false;warnings.push({key,blockedAttempts:guard.blockedAttempts?.length||0});}
@@ -325,7 +325,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
       if(receipt.guardWarnings?.length)for(const item of Object.values(results)){item.guardWarnings=receipt.guardWarnings;item.configurationComplete=false;if(item.status==='configured')item.status='needs_user';}
       for(const item of Object.values(results))item.handedOff=true;
       session.handedOff=true;session.completed=Object.values(results).every(r=>plan.autoPublish?r.status==='published':r.configurationComplete===true);writeJson(sessionPath,session);
-      if(!plan.autoPublish)for(const job of plan.jobs.filter(job=>results[job.platform]?.configurationComplete===true)){const statePath=path.join(stateRoot,job.jobId,'state.json');if(!fs.existsSync(statePath))continue;if((job.type??plan.type)==='dynamic'){const state=readJson(statePath);state.handoff={status:'review_handed_off',at:new Date().toISOString()};writeJson(statePath,state);}else{const file=path.join(stateRoot,job.jobId,'manual-control.json'),control=fs.existsSync(file)?readJson(file):{};writeJson(file,{...control,handoffs:{...control.handoffs,[job.platform]:{status:'review_handed_off'}}});}}
+      if(!plan.autoPublish)for(const job of plan.jobs.filter(job=>results[job.platform]?.configurationComplete===true)){const statePath=path.join(stateRoot,job.jobId,'state.json');if(!fs.existsSync(statePath))continue;if(['dynamic','image'].includes(job.type??plan.type)){const state=readJson(statePath);state.handoff={status:'review_handed_off',at:new Date().toISOString()};writeJson(statePath,state);}else{const file=path.join(stateRoot,job.jobId,'manual-control.json'),control=fs.existsSync(file)?readJson(file):{};writeJson(file,{...control,handoffs:{...control.handoffs,[job.platform]:{status:'review_handed_off'}}});}}
     }
   });
   if(plan.command==='handoff'&&plan.jobs.length>1&&Object.values(results).every(r=>r.status==='awaiting_manual_send')){

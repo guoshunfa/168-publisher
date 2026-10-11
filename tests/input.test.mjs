@@ -7,7 +7,7 @@ import {parseTemplate,expandRequest,saveRequestResult} from '../scripts/input.mj
 import {resolveDefaults,withEffectivePackage} from '../scripts/video-defaults.mjs';
 import {renderReport} from '../scripts/report.mjs';
 import {entries as currentEntries} from '../scripts/registry.mjs';
-const {media,...entries}=currentEntries;
+const {media,image,...entries}=currentEntries;
 import {execute,request,compactResult} from '../scripts/publisher.mjs';
 const settings={profile:'账号 A',platforms:{video:entries.video.platforms,dynamic:entries.dynamic.platforms},waitTimeout:1800};
 const template='类型：动态\n标题：无\n正文：第一行\n\n第二行  原样\n标签：AI 工具、发布\n媒体：\n/tmp/a b.png\n/tmp/c.png\n平台：X、微博、即刻';

@@ -14,7 +14,7 @@ export function renderReport(report,context,pkg){
  for(const [platform,item] of rows){
   const checked=item.contentAudit||item,audit=checked.audit;
   if(preflight){
-   const title=platform==='wechat_channels'&&video?(audit?.fields?.shortTitle?.value??pkg.wechatShortTitle)||'留空':(context.scope.type==='dynamic'||context.scope.type==='media'&&(!video||!standalone.includes(platform)))&&platform!=='xiaohongshu'?'不使用':audit?.fields?.title?.value??checked.title??pkg.platforms?.[platform]?.title??pkg.title??'留空';
+   const title=platform==='wechat_channels'&&video?(audit?.fields?.shortTitle?.value??pkg.wechatShortTitle)||'留空':(context.scope.type==='dynamic'||context.scope.type==='media'&&(!video||!standalone.includes(platform)))&&!(video?['xiaohongshu']:['xiaohongshu','douyin','bilibili','wechat_channels']).includes(platform)?'不使用':audit?.fields?.title?.value??checked.title??pkg.platforms?.[platform]?.title??pkg.title??'留空';
    lines.push(`| ${name(platform)} | ${item.status==='login_checked'?'已登录':item.status==='needs_login'?'未登录':'—'} | ${cell(title)} |`);
    if(item.status!=='login_checked')problems.push(`需检查：${name(platform)}${item.status==='needs_login'?'登录未完成':'登录检查失败'}：${item.reason||'未取得明确结果'}`);
   }else lines.push(`| ${name(platform)} | ${labels[item.status]||cell(item.status)} | ${cell(item.reason||item.error||item.blocker|| (item.skipped?'沿用已完成配置':item.configurationComplete?'已触发媒体提交；上传及平台处理待查看':''))} |`);

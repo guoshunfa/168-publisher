@@ -6,7 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import {parseTemplate,expandRequest} from '../scripts/input.mjs';
 import {entries as currentEntries} from '../scripts/registry.mjs';
-const {media,...entries}=currentEntries;
+const {media,image,...entries}=currentEntries;
 import {autoPublish,publishOnce,waitUntilReady,selectPublishButton,clickPublishButton,publicationFeedback,publicationScript} from '../scripts/auto-publish.mjs';
 import {execute,request} from '../scripts/publisher.mjs';
 import {run} from '../scripts/runtime.mjs';

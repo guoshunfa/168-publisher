@@ -6,4 +6,6 @@ export const entries = {
   dynamic: {actionPreparation: true, urls: {x:"https://x.com/compose/post",weibo:"https://weibo.com/",xiaohongshu:"https://creator.xiaohongshu.com/publish/publish?source=official",jike:"https://web.okjike.com/following"}, platforms: ['x', 'weibo', 'xiaohongshu', 'jike'], entry: fileURLToPath(new URL('./dynamic.mjs', import.meta.url))},
 };
 
+entries.image={actionPreparation:true,platforms:['douyin','bilibili','wechat_channels','youtube'],urls:{douyin:'https://creator.douyin.com/creator-micro/content/upload?default-tab=3',bilibili:'https://t.bilibili.com/',wechat_channels:'https://channels.weixin.qq.com/platform/post/finderNewLifeCreate',youtube:'https://www.youtube.com/'},entry:fileURLToPath(new URL('./dynamic.mjs',import.meta.url))};
+
 entries.media={actionPreparation:true,platforms:[...new Set([...entries.video.platforms,...entries.dynamic.platforms])]};

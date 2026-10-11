@@ -1,8 +1,8 @@
 export function armGuard(fingerprint) {
   const platform = typeof fingerprint === "object" ? fingerprint.platform : "x";
   if (typeof fingerprint === "object") fingerprint = fingerprint.fingerprint;
-  if (!["x", "weibo", "xiaohongshu", "jike"].includes(platform)) throw new Error("Unknown guard platform");
-  const key = {x: '__168_PUBLISHER_X__', weibo: '__168_PUBLISHER_WEIBO__', xiaohongshu: '__168_PUBLISHER_XHS__', jike: '__168_PUBLISHER_JIKE__'}[platform];
+  if (!["x", "weibo", "xiaohongshu", "jike","douyin","bilibili","wechat_channels","youtube"].includes(platform)) throw new Error("Unknown guard platform");
+  const key = {x: '__168_PUBLISHER_X__', weibo: '__168_PUBLISHER_WEIBO__', xiaohongshu: '__168_PUBLISHER_XHS__', jike: '__168_PUBLISHER_JIKE__'}[platform]||'__168_PUBLISHER_IMAGE__';
   const version = platform === 'xiaohongshu' ? 3 : 2;
   const old = window[key];
   if (old) {
@@ -14,10 +14,10 @@ export function armGuard(fingerprint) {
   const guard = { version, fingerprint, armed: true, blockedAttempts: [], files: old?.files || [], blobs: old?.blobs || {} };
   const stop = event => {
     if (!guard.armed) return;
-    const target = event.target instanceof Element ? event.target : event.target?.parentElement;
-    const control = target?.closest('button, a, [role="button"]');
+    const target = (event.composedPath?.()||[event.target]).find(node=>node instanceof Element)||event.target;
+    const control = target?.closest('button, a, [role="button"],.bili-dyn-publishing__action.launcher');
     // The closed XHS component retargets clicks to its host; protect the entire footer, including draft save.
-    const final = platform === "xiaohongshu" && target?.closest('xhs-publish-btn') || (platform !== "x" ? control && /^(发送|发表|群发|确认发表|确认群发|立即发表|定时发表|发布|立即发布|确认发布|确定并发布|提交审核|发布微博|定时发布|定时发送|定时|保存并发布|发布笔记)$/.test((control.innerText || control.getAttribute("aria-label") || "").trim())
+    const final = platform === "xiaohongshu" && target?.closest('xhs-publish-btn') || (platform !== "x" ? control && /^(发送|发表|群发|确认发表|确认群发|立即发表|定时发表|发布|立即发布|确认发布|确定并发布|提交审核|发布微博|定时发布|定时发送|定时|保存并发布|发布笔记|Post|Publish|Schedule)$/.test((control.innerText || control.getAttribute("aria-label") || "").trim())
       : target?.closest('[data-testid="tweetButton"], [data-testid="tweetButtonInline"], [data-testid="scheduleOption"]'));
     const shortcut = ["keydown", "keyup", "keypress"].includes(event.type) && event.key === "Enter" && (event.metaKey || event.ctrlKey);
     if (final || shortcut || event.type === "submit") {
@@ -43,7 +43,7 @@ export function armGuard(fingerprint) {
   };
   const seenChanges = new WeakSet();
   const change = event => {
-    const target = event.target;
+    const target = (event.composedPath?.()||[event.target]).find(node=>node.matches?.('input[type="file"]'))||event.target;
     if (!target.matches?.(platform !== "x" ? 'input[type="file"]' : '[role="dialog"] input[data-testid="fileInput"]')) return;
     if (seenChanges.has(event)) return;
     seenChanges.add(event);

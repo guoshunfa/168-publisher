@@ -1,6 +1,6 @@
 [简体中文](platform-rules.md)
 
-New requests infer media from images or a video. Eight platforms share one default list; only X, Weibo, Xiaohongshu and Jike support images. The video/dynamic entry names below describe existing adapters and legacy jobs, not a user-selected content type. New Xiaohongshu videos use the video entry; X, Weibo and Jike videos use their social adapters.
+New requests infer media from images or a video. Eight platforms share one default list; all eight have image and video entries. The video/dynamic/image entry names below describe existing adapters and legacy jobs, not a user-selected content type. New Xiaohongshu videos use the video entry; X, Weibo and Jike videos use their social adapters.
 
 
 # Platform publishing rules
@@ -69,6 +69,13 @@ Posts require nonempty text and one media type: images or a single video, never 
 | Weibo | 1–9 | ≤5 MiB | [Official photo help](https://kefu.weibo.com/faqdetail?id=12483) states <20 MB and supports GIF/JPG/PNG; the tool is narrower |
 | Xiaohongshu | 1–18 | ≤5 MiB | The [sharing SDK](https://agora.xiaohongshu.com/doc/android) count is not evidence of native web limits |
 | Jike | 1–9 | ≤5 MiB | The [official site](https://www.okjike.com/) does not publish complete image specifications |
+
+| Douyin | 1–35 | ≤5 MiB | [Native image entry](https://creator.douyin.com/creator-micro/content/upload?default-tab=3) displays 35 images and 50 MB each; the program uses JPEG/PNG ≤5 MiB. A user title is required, ≤30 UTF-16 units |
+| Bilibili | 1–9 | ≤5 MiB | [Feed composer](https://t.bilibili.com/); optional title ≤20 UTF-16 units and nonempty body. Counts and sizes are program limits; complete official web limits remain unverified |
+| WeChat Channels | 1–18 | ≤5 MiB | [Native image entry](https://channels.weixin.qq.com/platform/post/finderNewLifeCreate) displays 18 images, 20 MB each, optional title ≤22 characters and description ≤1000 characters. The program uses JPEG/PNG ≤5 MiB and counts description plus tags in UTF-16 units |
+| YouTube | 1–10 | ≤5 MiB | [Official Community post help](https://support.google.com/youtube/answer/7124474?co=GENIE.Platform%3DDesktop&hl=en) allows 10 images, 16 MB each, JPG/PNG/GIF/WEBP. The program uses JPEG/PNG ≤5 MiB. A 1:1 ratio is suggested, not mandatory. Posts have no independent title |
+
+Real uploading and final publishing on these four new image entries remain unverified. Verification requires the current account, original file hashes, ordered native previews and successful upload receipts. Compression, re-encoding or receipts without a matching URL stop automatic publishing for user review on the original page.
 
 Unknown pixel/aspect-ratio requirements still need target-editor confirmation. Image order is preserved. Duplicate sources, mixed images/video and program size/count violations are rejected before preparation. HTTPS downloads reject private addresses, embedded credentials, custom ports, unsafe redirects, timeouts and oversized responses.
 

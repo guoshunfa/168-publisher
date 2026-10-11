@@ -12,11 +12,12 @@ export function adapterType(pkg,platform,registry) {
   const kind=mediaKind(pkg);
   if(kind==='video'&&registry.video.platforms.includes(platform))return 'video';
   if(registry.dynamic.platforms.includes(platform))return 'dynamic';
+  if(kind==='image'&&registry.image?.platforms.includes(platform))return 'image';
   throw new Error('平台：'+platform+' 不支持当前图片媒体');
 }
 
 export function supportedMediaPlatforms(pkg,registry) {
-  return mediaKind(pkg)==='image'?registry.dynamic.platforms:registry.media.platforms;
+  return mediaKind(pkg)==='image'?[...registry.dynamic.platforms,...(registry.image?.platforms||[])]:registry.media.platforms;
 }
 
 export function adapterPackage(pkg,platform,type) {
@@ -29,10 +30,10 @@ export function adapterPackage(pkg,platform,type) {
     delete value.text;delete value.images;delete value.platforms;
     return value;
   }
-  const value={type:'dynamic',text:pkg.text??pkg.description??'',tags:pkg.tags??[]};
+  const value={type:type==='image'?'image':'dynamic',text:pkg.text??pkg.description??'',tags:pkg.tags??[]};
   if(pkg.videoPath)value.videoPath=pkg.videoPath;else value.images=pkg.images;
   const override={...pkg.platforms?.[platform]};
-  if(platform==='xiaohongshu'&&pkg.title)override.title??=pkg.title;
+  if(['xiaohongshu','douyin','bilibili','wechat_channels'].includes(platform)&&pkg.title)override.title??=pkg.title;
   if(Object.keys(override).length)value.platforms={[platform]:override};
   return value;
 }

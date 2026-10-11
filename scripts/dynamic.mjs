@@ -9,6 +9,8 @@ import { armGuard, observeX } from "./x-page.mjs";
 import { observeWeibo } from "./weibo-page.mjs";
 import { observeXhs, fillXhsScript } from "./xhs-page.mjs";
 import { observeJike } from "./jike-page.mjs";
+import {imageControls,observeImage,armImageReceipts} from './image-page.mjs';
+import {entries} from './registry.mjs';
 import { PREFIX, readJson, writeJson, ego, checkProfile, isMain, openDraftPageScript, clearCurrentEditor } from "./runtime.mjs";
 import { acquireJobLock, resolvePublisherLockDirectory } from "../assets/vendor/video-publisher/scripts/v2/lib/job-lock.mjs";
 
@@ -44,13 +46,16 @@ export function assertDynamicReady(observation, state, now = Date.now()) {
   if (!verdict.ready || observation.finalPublishClicked !== false || observation.taskSpaceId !== state.taskSpaceId
     || observation.account !== state.account || !Number.isFinite(age) || age < 0 || age > 60000) throw new Error("Draft not freshly verified; manual handoff stopped");
 }
-const observer = state => state.pkg.platform === "jike" ? observeJike : state.pkg.platform === "xiaohongshu" ? observeXhs : state.pkg.platform === "weibo" ? observeWeibo : observeX;
-const guardKey = state => state.pkg.platform === "jike" ? "__168_PUBLISHER_JIKE__" : state.pkg.platform === "xiaohongshu" ? "__168_PUBLISHER_XHS__" : state.pkg.platform === "weibo" ? "__168_PUBLISHER_WEIBO__" : "__168_PUBLISHER_X__";
+const imagePlatform=platform=>entries.image.platforms.includes(platform);
+const observer = state => imagePlatform(state.pkg.platform)?observeImage:state.pkg.platform === "jike" ? observeJike : state.pkg.platform === "xiaohongshu" ? observeXhs : state.pkg.platform === "weibo" ? observeWeibo : observeX;
+const guardKey = state => imagePlatform(state.pkg.platform)?'__168_PUBLISHER_IMAGE__':state.pkg.platform === "jike" ? "__168_PUBLISHER_JIKE__" : state.pkg.platform === "xiaohongshu" ? "__168_PUBLISHER_XHS__" : state.pkg.platform === "weibo" ? "__168_PUBLISHER_WEIBO__" : "__168_PUBLISHER_X__";
 const observeScript = state => existingSpaceScript(state) + `
+${imagePlatform(state.pkg.platform)?`await page.evaluate(${imageControls.toString()},state.pkg.platform);`:""}
 const observation = await page.evaluate(${observer(state).toString()}, expected);
 console.log(${JSON.stringify(PREFIX)} + JSON.stringify({ ...observation, taskSpaceId: task.spaceId }));`;
 export function handoffDynamicScript(state, defer = false) {
   return existingSpaceScript(state) + `
+${imagePlatform(state.pkg.platform)?`await page.evaluate(${imageControls.toString()},state.pkg.platform);`:""}
 const fresh = await page.evaluate(${observer(state).toString()}, expected);
 if (Object.values(fresh.gates).some(ok => ok !== true)) throw new Error("Draft changed before handoff");
 const released = await page.evaluate(() => window[${JSON.stringify(guardKey(state))}].release());
@@ -64,7 +69,8 @@ export async function main(argv = process.argv.slice(2)) {
   const labelIndex=args.indexOf('--page-label');if(labelIndex>=0){pageLabel=args[labelIndex+1];args.splice(labelIndex,2);if(!/^p[1-9][0-9]*$/.test(pageLabel||'')||args.includes('--page-label'))throw new Error('Invalid page label');}
   const actionsOnly=args.includes('--actions-only');if(actionsOnly)args.splice(args.indexOf('--actions-only'),1);
   const i=args.indexOf('--space');if(i>=0){space=args[i+1];args.splice(i,2);if(!/^\d+$/.test(space||'')||args.includes('--space'))throw new Error('Invalid space');}
-  const options = parseDynamicOptions(args);
+  const options = parseDynamicOptions(args,[...entries.dynamic.platforms,...entries.image.platforms]);
+  const image=imagePlatform(options.platform);
   if(space&&options.command!=='prepare')throw new Error('--space only valid for new preparation');
   const packagePath = path.resolve(options.package);
   const raw = readJson(packagePath);
@@ -117,7 +123,7 @@ export async function main(argv = process.argv.slice(2)) {
       state.pageOpeningAttempted=true;writeJson(statePath,state);
       const created = resultFrom(await ego(openDraftPageScript(state,space,pageLabel),lock));
       Object.assign(state, created); writeJson(statePath, state);
-      if(!pageLabel)await ego(existingSpaceScript(state) + `await page.goto(${JSON.stringify(options.platform === "jike" ? "https://web.okjike.com/following" : options.platform === "xiaohongshu" ? "https://creator.xiaohongshu.com/publish/publish?source=official" : options.platform === "weibo" ? "https://weibo.com/" : "https://x.com/compose/post")}); console.log("Composer opened");`, lock);
+      if(!pageLabel)await ego(existingSpaceScript(state) + `await page.goto(${JSON.stringify(image?entries.image.urls[options.platform]:options.platform === "jike" ? "https://web.okjike.com/following" : options.platform === "xiaohongshu" ? "https://creator.xiaohongshu.com/publish/publish?source=official" : options.platform === "weibo" ? "https://weibo.com/" : "https://x.com/compose/post")}); console.log("Composer opened");`, lock);
       state.stage = "opened"; writeJson(statePath, state);
     }
     if (options["resume-control"]) await ego(existingSpaceScript(state, true) + `console.log("Original control resumed");`, lock);
@@ -139,12 +145,23 @@ if (!await page.evaluate(() => location.pathname.includes('login'))) {
   if (await page.evaluate(() => !!document.querySelector('#publisher-xhs-image-tab'))) await page.click('#publisher-xhs-image-tab .title');
 }
 console.log('Graphic entry selected');`, lock);
+      if(image&&!state.uploadAttempted)await ego(existingSpaceScript(state)+`
+await page.evaluate(${armGuard.toString()},{platform:state.pkg.platform,fingerprint:state.fingerprint});
+await page.evaluate(${armImageReceipts.toString()});
+if(state.pkg.platform==='youtube'&&!await page.evaluate(()=>!!document.querySelector('ytd-backstage-post-dialog-renderer #contenteditable-root'))){
+  await page.click('button[aria-label="创建"],button[aria-label="Create"]');
+  await page.waitForSelector('ytd-popup-container a[href*="posts?show_create_dialog=1"]',{timeout:10000});
+  await page.click('ytd-popup-container a[href*="posts?show_create_dialog=1"]');
+}
+
+console.log('Native image entry opened');`,lock);
       const xhsFileSelector=pkg.videoPath?'input.upload-input[accept*=".mp4"]':'input.upload-input[accept*=".jpg"]';
-      const editorSelector = options.platform === "jike" ? '[data-lexical-editor="true"][contenteditable="true"]' : options.platform === "xiaohongshu" ? '.tiptap[contenteditable="true"], '+xhsFileSelector : options.platform === "weibo" ? 'textarea[placeholder="有什么新鲜事想分享给大家？"]' : '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]';
-      const fileSelector = options.platform === "xiaohongshu" ? xhsFileSelector : ["weibo", "jike"].includes(options.platform) ? 'input[type="file"]' : '[role="dialog"] input[data-testid="fileInput"]';
+      const editorSelector = image?'#publisher-image-body, #publisher-image-files':options.platform === "jike" ? '[data-lexical-editor="true"][contenteditable="true"]' : options.platform === "xiaohongshu" ? '.tiptap[contenteditable="true"], '+xhsFileSelector : options.platform === "weibo" ? 'textarea[placeholder="有什么新鲜事想分享给大家？"]' : '[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]';
+      const fileSelector = image?'#publisher-image-files':options.platform === "xiaohongshu" ? xhsFileSelector : ["weibo", "jike"].includes(options.platform) ? 'input[type="file"]' : '[role="dialog"] input[data-testid="fileInput"]';
       let initial = resultFrom(await ego(existingSpaceScript(state) + `
 await page.evaluate(${armGuard.toString()}, { platform: state.pkg.platform, fingerprint: state.fingerprint });
-await page.waitForFunction(() => location.pathname.includes('login') || [...document.querySelectorAll(${JSON.stringify(editorSelector)})].some(e => e.type === 'file' || e.getBoundingClientRect().height > 0), undefined, { timeout: 30000 });
+${image?`await page.evaluate(${armImageReceipts.toString()});await page.evaluate(${imageControls.toString()},state.pkg.platform);`:""}
+${image?`await page.waitForFunction(platform=>{const controls=(${imageControls.toString()})(platform);return location.pathname.includes('login')||controls.editor||controls.file;},state.pkg.platform,{timeout:30000});`:`await page.waitForFunction(() => location.pathname.includes('login') || [...document.querySelectorAll(${JSON.stringify(editorSelector)})].some(e => e.type === 'file' || e.getBoundingClientRect().height > 0), undefined, { timeout: 30000 });`}
 console.log(${JSON.stringify(PREFIX)} + JSON.stringify(await page.evaluate(${observer(state).toString()}, expected)));`, lock));
       if (!initial.gates.authenticated) { state.status = "needs_login"; writeJson(statePath, state); console.log(JSON.stringify({ jobId, status: state.status, taskSpaceId: state.taskSpaceId }, null, 2)); process.exitCode = 10; return; }
       if (!initial.gates.composer || !initial.gates.account || !initial.gates.safety) throw new Error("Composer, account or guard not proven");
@@ -160,6 +177,7 @@ console.log(${JSON.stringify(PREFIX)} + JSON.stringify(await page.evaluate(${obs
       if(!state.uploadAttempted&&!state.cleanupComplete){
         if(state.cleanupAttempted)throw new Error('History cleanup outcome unknown');
         const dirty=initial.text.trim()||initial.title||initial.images.length||initial.videos||initial.files.length||initial.videoPreviews?.some(v=>v.media?.originalSize);
+        if(dirty&&image)throw new Error('Native image composer contains unrelated content; resolve it on the original page before continuing');
         if(dirty){
         writeJson(path.join(jobDir,'stale-content.json'),initial);
         state.cleanupAttempted=true;writeJson(statePath,state);
@@ -180,7 +198,8 @@ console.log(${JSON.stringify(PREFIX)} + JSON.stringify(await page.evaluate(${obs
         console.error(JSON.stringify({progress:{platform:options.platform,step:'submit_media'}}));
         state.uploadAttempted = true; writeJson(statePath, state);
         await ego(existingSpaceScript(state) + `
-await page.setInputFiles(${JSON.stringify(fileSelector)}, state.assets.map(asset => asset.path));
+${image&&options.platform==='bilibili'?`const chooserPromise=page.waitForFileChooser({timeout:10000});await page.click('.bili-dyn-publishing__tools__item.pic');const chooser=await chooserPromise;await chooser.setFiles(state.assets.map(asset=>asset.path));`:`await page.setInputFiles(${JSON.stringify(fileSelector)}, state.assets.map(asset => asset.path));`}
+${image?`await page.waitForFunction(platform=>(${imageControls.toString()})(platform).editor,state.pkg.platform,{timeout:30000});`:""}
 ${actionsOnly?'':`await page.waitForFunction(() => window[${JSON.stringify(guardKey(state))}]?.files.length > 0 && window[${JSON.stringify(guardKey(state))}].files.every(f => !f.pending), undefined, { timeout: 30000 });`}
 console.log("Upload input submitted; server completion is not awaited");`, lock);
         if(options.platform==='jike'){
@@ -192,11 +211,12 @@ console.log("Upload input submitted; server completion is not awaited");`, lock)
       if (!initial.gates.text) {
         console.error(JSON.stringify({progress:{platform:options.platform,step:'fill_title_body_tags'}}));
         await ego(existingSpaceScript(state) + (options.platform === "xiaohongshu" ? fillXhsScript(state) : `
-await page.focus(${JSON.stringify(editorSelector)});
+${image?`if(state.pkg.title!==undefined&&await page.evaluate(platform=>(${imageControls.toString()})(platform).title,state.pkg.platform))await page.fill('#publisher-image-title',state.pkg.title);`:""}
+await page.focus(${JSON.stringify(image?'#publisher-image-body':editorSelector)});
 await page.keyboard.press('Meta+A');
 await page.keyboard.press('Backspace');
 if (state.pkg.text) await page.keyboard.paste(state.pkg.text);
-await page.waitForFunction(async expected => (await (${observer(state).toString()})(expected)).gates.text, expected, { timeout: 10000 });
+await page.waitForFunction(async expected => {${image?`(${imageControls.toString()})(expected.platform);`:''}return (await (${observer(state).toString()})(expected)).gates.text;}, expected, { timeout: 10000 });
 console.log("Text entered; independent verification required");`), lock);
       }
       delete state.preparationPending;

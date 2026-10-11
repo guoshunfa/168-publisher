@@ -5,7 +5,7 @@ import {coverAssetsForPlatform,getImageDimensions} from '../assets/vendor/video-
 import {inspectMediaFile} from '../assets/vendor/video-publisher/scripts/lib/media.mjs';
 
 const points=value=>[...value].length;
-export const DYNAMIC_RULES=Object.freeze({x:Object.freeze({maxImages:4,maxImageBytes:5_000_000,maxBody:280}),weibo:Object.freeze({maxImages:9,maxImageBytes:5*1024**2}),xiaohongshu:Object.freeze({maxImages:18,maxImageBytes:5*1024**2,maxTitle:20,maxBody:1000}),jike:Object.freeze({maxImages:9,maxImageBytes:5*1024**2})});
+export const DYNAMIC_RULES=Object.freeze({x:Object.freeze({maxImages:4,maxImageBytes:5_000_000,maxBody:280}),weibo:Object.freeze({maxImages:9,maxImageBytes:5*1024**2}),xiaohongshu:Object.freeze({maxImages:18,maxImageBytes:5*1024**2,maxTitle:20,maxBody:1000}),jike:Object.freeze({maxImages:9,maxImageBytes:5*1024**2}),douyin:Object.freeze({maxImages:35,maxImageBytes:5*1024**2,maxTitle:30}),bilibili:Object.freeze({maxImages:9,maxImageBytes:5*1024**2,maxTitle:20}),wechat_channels:Object.freeze({maxImages:18,maxImageBytes:5*1024**2,maxTitle:22,maxBody:1000}),youtube:Object.freeze({maxImages:10,maxImageBytes:5*1024**2})});
 export function dynamicBody(platform,text,tags=[]){return platform==='xiaohongshu'||!tags.length?text:text+'\n\n'+tags.map(t=>'#'+t+(platform==='weibo'?'#':'')).join(' ');}
 export function dynamicTagErrors(tags){
  if(!Array.isArray(tags)||tags.some(t=>typeof t!=='string'||!/^#?[^\s#]+$/u.test(t)))return ['tags must be an array of nonempty hashtag names without spaces; split user input only on 、'];
@@ -122,6 +122,8 @@ export function dynamicAudit(platform,raw,directory,{legacy=false}={}){
   fields.body=auditField(body,{required:true,max:DYNAMIC_RULES.x.maxBody,unit:'twitter-text v3 weighted units',count:v=>parseTweet(v).weightedLength,source:'official_twitter_text_v3'});
   if(parsed&&!parsed.valid&&parsed.weightedLength<=DYNAMIC_RULES.x.maxBody)fields.body.errors.push('Contains invalid characters under twitter-text v3');
  }
+ if(['douyin','bilibili','wechat_channels'].includes(platform))fields.title=auditField(p.title??'',{required:platform==='douyin',max:DYNAMIC_RULES[platform].maxTitle});
+ if(platform==='wechat_channels')fields.body=auditField(body,{required:true,max:1000});
  if(platform==='xiaohongshu')fields.title=auditField(p.title??'',{max:DYNAMIC_RULES.xiaohongshu.maxTitle,unit:'UTF-16 units'});
  if(platform==='xiaohongshu'){fields.body=auditField(body,{required:true,max:DYNAMIC_RULES.xiaohongshu.maxBody,unit:'UTF-16 units',source:'conservative_program_limit'});fields.body.nativeTopicCountVerified=false;}
  const errors=[],warnings=['Unknown platform limits and account-dependent rules require review in the original editor'];

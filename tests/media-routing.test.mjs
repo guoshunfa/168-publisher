@@ -16,7 +16,7 @@ const settings={profile:'',platforms:{media:entries.media.platforms},waitTimeout
 const template=(media,platforms='所有')=>`是否全自动：否\n标题：原题\n正文：第一行\n第二行  原样\n标签：AI\n媒体：${media}\n平台：${platforms}`;
 
 test('A type-free request infers images or video, deduplicates platforms and ignores a legacy type selection',()=>{
- for(const [file,kind,count] of [['/tmp/a.png','image',4],['/tmp/a.mp4','video',8]]){
+ for(const [file,kind,count] of [['/tmp/a.png','image',8],['/tmp/a.mp4','video',8]]){
   const parsed=parseTemplate(template(file),settings,entries);
   assert.equal(parsed.pkg.type,'media');assert.equal(mediaKind(parsed.pkg),kind);assert.equal(parsed.platforms.length,count);
   assert.equal(new Set(parsed.platforms).size,count);assert.deepEqual(parsed.errors,[]);
@@ -45,18 +45,18 @@ test('Video reuses the existing native entry on each platform without copying un
 });
 
 test('Missing, mixed or unsupported media and explicitly unsupported platforms stop before browser work',()=>{
- for(const input of ['正文：a',template('/tmp/a.gif'),template('/tmp/a.png','YouTube'),template('/tmp/a.png','X、X')])assert.throws(()=>parseTemplate(input,settings,entries));
+ for(const input of ['正文：a',template('/tmp/a.gif'),template('/tmp/a.png','unsupported'),template('/tmp/a.png','X、X')])assert.throws(()=>parseTemplate(input,settings,entries));
  const mixed=parseTemplate(template('/tmp/a.png\n/tmp/a.mp4','X'),settings,entries);assert.match(mixed.errors.join(),/不得混选/);
- assert.throws(()=>request(['check','--package','/tmp/a.json','--platform','youtube'],{type:'media',images:['/tmp/a.png']}),/不支持/);
+ assert.throws(()=>request(['check','--package','/tmp/a.json','--platform','unsupported'],{type:'media',images:['/tmp/a.png']}),/Unsupported/);
  assert.throws(()=>request(['check','--package','/tmp/a.json','--platform','x'],{type:'media',images:['/tmp/a.png'],videoPath:'/tmp/a.mp4'}),/混选/);
 });
 
 test('One default platform list filters images and keeps explicit platform order',()=>{
  const custom={...settings,platforms:{media:['youtube','weibo','x']}};
- assert.deepEqual(parseTemplate(template('/tmp/a.png'),custom,entries).platforms,['weibo','x']);
+ assert.deepEqual(parseTemplate(template('/tmp/a.png'),custom,entries).platforms,['youtube','weibo','x']);
  assert.deepEqual(parseTemplate(template('/tmp/a.mp4'),custom,entries).platforms,['youtube','weibo','x']);
  assert.deepEqual(parseTemplate(template('/tmp/a.mp4','X、YouTube'),custom,entries).platforms,['x','youtube']);
- assert.throws(()=>parseTemplate(template('/tmp/a.png'),{...settings,platforms:{media:['youtube']}},entries),/目标为空/);
+ assert.throws(()=>parseTemplate(template('/tmp/a.png'),{...settings,platforms:{media:[]}},entries),/目标为空/);
 });
 
 test('Legacy defaults merge once, preserve Pro article defaults, and invalid configurations stay unchanged',()=>{
@@ -76,7 +76,7 @@ test('Legacy defaults merge once, preserve Pro article defaults, and invalid con
 test('Legacy saved requests keep their adapters and snapshots after the unified entry is installed',()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'publisher-media-legacy-'));
  try{
-  const {media,...legacy}=entries,file=path.join(dir,'input'),configFile=path.join(dir,'settings.json');
+  const {media,image,...legacy}=entries,file=path.join(dir,'input'),configFile=path.join(dir,'settings.json');
   fs.writeFileSync(file,'类型：动态\n'+template('/tmp/a.mp4','X'));
   const previous=expandRequest(['check','--input',file,'--job-id','legacy'],{registry:legacy,stateHome:dir,configFile});previous.release();
   const stored=fs.readFileSync(previous.context.packagePath,'utf8');
@@ -106,7 +106,7 @@ test('Type-free images and video pass real local checks across all supported tar
   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=black:s=1280x720:r=24','-t','4','-c:v','libx264','-pix_fmt','yuv420p',video]);
   fs.writeFileSync(path.join(dir,'video.json'),JSON.stringify(createOnboardedConfig({sourceDirectory:dir,availablePlatforms:entries.video.platforms,defaultPlatforms:['youtube'],declarations:{originalityPolicy:'all_videos_original'}})));
   fs.writeFileSync(runner,`import {main} from ${JSON.stringify(new URL('../scripts/publisher.mjs',import.meta.url).href)};await main(process.argv.slice(2),${JSON.stringify({stateHome:dir,configFile:path.join(dir,'settings.json')})});`);
-  for(const [media,count] of [[image,4],[video,8]]){
+  for(const [media,count] of [[image,8],[video,8]]){
    fs.writeFileSync(input,template(media));
    const result=await run(process.execPath,[runner,'check','--input',input],{env:{...process.env,VIDEO_PUBLISHER_V2_EGO_COMMAND:'/fixture/no-browser',PUBLISHER_VIDEO_CONFIG:path.join(dir,'video.json')}});
    assert.equal(result.code,0,result.stderr+'\n'+result.stdout);assert.equal((result.stdout.match(/内容通过/g)||[]).length,count);

@@ -114,8 +114,8 @@ test('Precreation binds four unique pages before any platform preparation and re
 });
 
 test('Review releases Agent guards, hands off once and never clicks; test drafts are still handed back with guard intact',async()=>{
- for(const protectedContent of [false,true]){
-  const events=[],guard={armed:true,release(){events.push('release');this.armed=false;return {ok:true};}},task={page:()=>({evaluate:async fn=>vm.runInNewContext('('+fn.toString()+')()', {window:{__168_PUBLISHER_X__:guard}})}),handOff:async()=>events.push('handoff'),spaceId:65};
+ for(const protectedContent of [false,true])for(const guardKey of ['__168_PUBLISHER_X__','__168_PUBLISHER_IMAGE__']){
+  const events=[],guard={armed:true,release(){events.push('release');this.armed=false;return {ok:true};}},task={page:()=>({evaluate:async fn=>vm.runInNewContext('('+fn.toString()+')()', {window:{[guardKey]:guard}})}),handOff:async()=>events.push('handoff'),spaceId:65};
   await vm.runInNewContext('(async()=>{'+reviewHandoffScript({name:'fixture',taskSpaceId:65,pages:{x:'p1'}},{protectedContent})+'})()', {listTaskSpaces:async()=>[{id:65,name:'fixture',ownership:'agent'}],taskSpace:async()=>task,console:{log(){}}});
   assert.deepEqual(events,protectedContent?['handoff']:['release','handoff']);assert.equal(guard.armed,protectedContent);
  }

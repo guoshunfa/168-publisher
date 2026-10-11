@@ -1,6 +1,6 @@
 [English](platform-rules.en.md)
 
-新任务按图片/视频自动分流，八个平台共用一个默认列表，其中 X、微博、小红书、即刻支持图文。下文 video/dynamic 是底层适配与旧任务标识，不是新用户要选择的类型。新小红书视频使用 video 入口；X、微博、即刻的视频使用各自社交适配器；所有原有限制仍适用。
+新任务按图片/视频自动分流，八个平台共用一个默认列表，八个平台均接入图文与视频。下文 video/dynamic/image 是底层适配与旧任务标识，不是新用户要选择的类型。新小红书视频使用 video 入口；X、微博、即刻的视频使用各自社交适配器；所有原有限制仍适用。
 
 
 # 平台发布规则
@@ -69,6 +69,13 @@
 | 微博 | 1–9 张 | ≤5 MiB | [官方图片帮助](https://kefu.weibo.com/faqdetail?id=12483)写单张 <20 MB、支持 GIF/JPG/PNG；当前工具范围更窄 |
 | 小红书 | 1–18 张 | ≤5 MiB | [分享 SDK](https://agora.xiaohongshu.com/doc/android)的 1–18 张不作为原生网页限制的证明 |
 | 即刻 | 1–9 张 | ≤5 MiB | [官网](https://www.okjike.com/)未公开完整图片技术上限 |
+
+| 抖音 | 1–35 张 | ≤5 MiB | [原生图文入口](https://creator.douyin.com/creator-micro/content/upload?default-tab=3)只读页面显示最多 35 张、单张 50 MB；程序保守采用 JPEG/PNG ≤5 MiB，标题必填且 ≤30 UTF-16 |
+| B站 | 1–9 张 | ≤5 MiB | [动态发布器](https://t.bilibili.com/)；可选标题 ≤20 UTF-16，正文必填；数量与大小是当前程序范围，完整官方上限未核实 |
+| 视频号 | 1–18 张 | ≤5 MiB | [原生图文入口](https://channels.weixin.qq.com/platform/post/finderNewLifeCreate)只读页面显示 18 张、单张 20 MB、可选标题 ≤22 字符、描述 ≤1000 字符；程序保守采用 JPEG/PNG ≤5 MiB，描述含标签按 UTF-16 计数 |
+| YouTube | 1–10 张 | ≤5 MiB | [官方社区帖子帮助](https://support.google.com/youtube/answer/7124474?co=GENIE.Platform%3DDesktop&hl=en)支持最多 10 张、单张 16 MB、JPG/PNG/GIF/WEBP；程序只接入 JPEG/PNG ≤5 MiB。建议 1:1 不是硬门槛，没有独立标题 |
+
+新增四个图片入口的账号权限、真实上传和最终发送尚未完整验收。核验必须有当前账号、原文件散列、原生预览顺序与成功上传回执；压缩、重编码或回执不含可关联 URL 时，保留原页面并等待用户处理，不绕过核验自动发布。
 
 图片最大宽高/比例等未知项目需目标网页确认。图片按给定顺序上传；重复图片来源、混选图与视频、超过程序数量或大小均在准备前拒绝。HTTPS 图片下载拒绝私网地址、凭据、自定义端口、重定向越界、超时和超限内容。
 

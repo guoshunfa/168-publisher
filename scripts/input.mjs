@@ -89,7 +89,7 @@ export function parseTemplate(text,settings,registry,{legacyType}={}){
    const key={title:videoTitles,body:videoBodies,tags:videoTags}[field][platform];
    if(!key){errors.push('该入口不支持字段：'+name);continue;}
    pkg[key]=field==='body'&&none(value)?'':value;
-  }else if(field==='title'&&platform!=='xiaohongshu')errors.push(inferred?'该平台没有独立标题字段':'动态独立标题仅支持小红书');
+  }else if(field==='title'&&!(inferred?['xiaohongshu','douyin','bilibili','wechat_channels']:['xiaohongshu']).includes(platform))errors.push(inferred?'该平台没有独立标题字段':'动态独立标题仅支持小红书');
   else{pkg.platforms??={};pkg.platforms[platform]??={};pkg.platforms[platform][field==='body'?'text':field]=field==='title'&&none(value)?'':value;}
  }
  if(type==='video'&&platforms.length===1&&platforms[0]==='xiaohongshu'&&body)errors.push('小红书独立视频不写正文；请确认不使用正文后将正文填“无”');

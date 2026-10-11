@@ -55,14 +55,14 @@ export function downloadImage(source, redirects = 0) {
   });
 }
 export function normalizeDynamic(raw, directory, platform = "x", { allowIncomplete = false } = {}) {
-  if (!["x", "weibo", "xiaohongshu", "jike"].includes(platform)) throw new Error("Unsupported dynamic platform");
-  const allowed = ["type", "text", "tags", "images", "videoPath", "platforms", ...(platform === "xiaohongshu" ? ["title"] : [])];
+  if (!Object.hasOwn(DYNAMIC_RULES,platform)) throw new Error("Unsupported dynamic platform");
+  const allowed = ["type", "text", "tags", "images", "videoPath", "platforms", ...(["xiaohongshu","douyin","bilibili","wechat_channels"].includes(platform) ? ["title"] : [])];
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) throw new Error("Unsupported dynamic fields; use text, tags, images or a supported local videoPath");
-  if (raw.type !== "dynamic") throw new Error('type must be "dynamic"');
-  if (raw.platforms && (typeof raw.platforms !== "object" || Array.isArray(raw.platforms) || Object.keys(raw.platforms).some(key => !["x", "weibo", "xiaohongshu", "jike"].includes(key)))) throw new Error("Unsupported platform override");
+  if (raw.type !== (["douyin","bilibili","wechat_channels","youtube"].includes(platform)?"image":"dynamic")) throw new Error('type must be "dynamic"');
+  if (raw.platforms && (typeof raw.platforms !== "object" || Array.isArray(raw.platforms) || Object.keys(raw.platforms).some(key => !Object.hasOwn(DYNAMIC_RULES,key)))) throw new Error("Unsupported platform override");
   const override = raw.platforms?.[platform] ?? {};
   if (!override || typeof override !== "object" || Array.isArray(override)) throw new Error(`${platform} override must be an object`);
-  if (Object.keys(override).some(key => !["text", "tags", "images", "videoPath", ...(platform === "xiaohongshu" ? ["title"] : [])].includes(key))) throw new Error(`Unsupported ${platform} override`);
+  if (Object.keys(override).some(key => !["text", "tags", "images", "videoPath", ...(["xiaohongshu","douyin","bilibili","wechat_channels"].includes(platform) ? ["title"] : [])].includes(key))) throw new Error(`Unsupported ${platform} override`);
   const chosen = { ...raw, ...override };
   if (typeof chosen.text !== "string" || chosen.text.includes("\0")) throw new Error("text must be a string without NUL");
   if (!allowIncomplete && !chosen.text.trim()) throw new Error("Dynamic body requires at least one non-whitespace character supplied by the user");
@@ -93,9 +93,12 @@ export function normalizeDynamic(raw, directory, platform = "x", { allowIncomple
     if (chosen.title !== undefined && (typeof chosen.title !== "string" || chosen.title.includes("\0") || chosen.title.length > DYNAMIC_RULES.xiaohongshu.maxTitle)) throw new Error(`Xiaohongshu preparation accepts a title up to ${DYNAMIC_RULES.xiaohongshu.maxTitle} UTF-16 units`);
     return { type: "dynamic", platform, text: chosen.text, title: chosen.title ?? "", tags: normalizedTags, sources, ...(videoPath?{videoPath}:{}) };
   }
+  if (["douyin","bilibili","wechat_channels"].includes(platform) && chosen.title !== undefined && (typeof chosen.title!=="string" || chosen.title.includes("\0") || chosen.title.length>DYNAMIC_RULES[platform].maxTitle)) throw new Error("Image title exceeds native limit");
+  if(platform==='douyin'&&!allowIncomplete&&!chosen.title?.trim())throw new Error('Douyin image post requires the user title');
   const text = dynamicBody(platform,chosen.text,normalizedTags);
+  if(platform==='wechat_channels'&&text.length>1000)throw new Error('WeChat image description exceeds 1000 characters');
   if (!text.trim() && !sources.length && !videoPath) throw new Error("Empty dynamic");
-  return { type: "dynamic", platform, text, sources, ...(videoPath ? { videoPath } : {}) };
+  return { type: raw.type, platform, text, ...(["douyin","bilibili","wechat_channels"].includes(platform)?{title:chosen.title??""}:{}),sources, ...(videoPath ? { videoPath } : {}) };
 }
 export async function materializeVideo(pkg, recorded) {
   const file=pkg.videoPath,media=inspectUploadVideo(file),review=reviewMedia(pkg.platform,'dynamic','video',media,{requireDuration:pkg.platform==='jike',legacy:!!recorded});

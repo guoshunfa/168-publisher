@@ -3,7 +3,7 @@ import path from 'node:path';
 import {readJson, writeJson} from './runtime.mjs';
 
 export function configuration(file, registry) {
-  const supported=Object.fromEntries(Object.entries(registry).filter(([type])=>!registry.media||!['video','dynamic'].includes(type)));
+  const supported=Object.fromEntries(Object.entries(registry).filter(([type])=>!registry.media||!['video','dynamic','image'].includes(type)));
   const defaults = {profile: '', platforms: Object.fromEntries(Object.entries(supported).map(([type, entry]) => [type, [...entry.platforms]])), waitTimeout: 1800};
   const saved = fs.existsSync(file);
   let config = saved ? readJson(file) : defaults;
@@ -13,7 +13,7 @@ export function configuration(file, registry) {
   if (!Number.isSafeInteger(config.waitTimeout) || config.waitTimeout < 1) throw new Error('Configuration waitTimeout must be positive integer seconds');
   const legacy=registry.media&&object(config.platforms)&&!Object.hasOwn(config.platforms,'media');
   if(legacy){
-    const old=Object.fromEntries(Object.entries(registry).filter(([type])=>type!=='media'));
+    const old=Object.fromEntries(Object.entries(registry).filter(([type])=>!['media','image'].includes(type)));
     if(Object.keys(config.platforms).length!==Object.keys(old).length)throw new Error('Configuration platforms must include each supported content type');
     for(const [type,entry] of Object.entries(old)){
       const selected=config.platforms[type];
