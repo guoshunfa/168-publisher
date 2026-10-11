@@ -16,7 +16,7 @@ const settings={profile:'',platforms:{media:entries.media.platforms},waitTimeout
 const template=(media,platforms='所有')=>`是否全自动：否\n标题：原题\n正文：第一行\n第二行  原样\n标签：AI\n媒体：${media}\n平台：${platforms}`;
 
 test('A type-free request infers images or video, deduplicates platforms and ignores a legacy type selection',()=>{
- for(const [file,kind,count] of [['/tmp/a.png','image',8],['/tmp/a.mp4','video',8]]){
+ for(const [file,kind,count] of [['/tmp/a.png','image',7],['/tmp/a.mp4','video',7]]){
   const parsed=parseTemplate(template(file),settings,entries);
   assert.equal(parsed.pkg.type,'media');assert.equal(mediaKind(parsed.pkg),kind);assert.equal(parsed.platforms.length,count);
   assert.equal(new Set(parsed.platforms).size,count);assert.deepEqual(parsed.errors,[]);
@@ -34,7 +34,7 @@ test('Video reuses the existing native entry on each platform without copying un
  for(const platform of parsed.platforms){
   const type=adapterType(parsed.pkg,platform,entries),pkg=adapterPackage(parsed.pkg,platform,type);
   assert.equal(pkg.videoPath,'/tmp/a.mp4');
-  assert.equal(type,['x','weibo','jike'].includes(platform)?'dynamic':'video');
+  assert.equal(type,['x','weibo'].includes(platform)?'dynamic':'video');
   if(type==='dynamic'){assert.equal(pkg.cover,undefined);assert.equal(pkg.title,undefined);}else assert.equal(pkg.cover.sourcePath,'/tmp/cover.png');
  }
  assert.equal(adapterPackage(parsed.pkg,'x','dynamic').platforms.x.text,'X 原文');
@@ -106,7 +106,7 @@ test('Type-free images and video pass real local checks across all supported tar
   execFileSync('ffmpeg',['-v','error','-f','lavfi','-i','color=c=black:s=1280x720:r=24','-t','4','-c:v','libx264','-pix_fmt','yuv420p',video]);
   fs.writeFileSync(path.join(dir,'video.json'),JSON.stringify(createOnboardedConfig({sourceDirectory:dir,availablePlatforms:entries.video.platforms,defaultPlatforms:['youtube'],declarations:{originalityPolicy:'all_videos_original'}})));
   fs.writeFileSync(runner,`import {main} from ${JSON.stringify(new URL('../scripts/publisher.mjs',import.meta.url).href)};await main(process.argv.slice(2),${JSON.stringify({stateHome:dir,configFile:path.join(dir,'settings.json')})});`);
-  for(const [media,count] of [[image,8],[video,8]]){
+  for(const [media,count] of [[image,7],[video,7]]){
    fs.writeFileSync(input,template(media));
    const result=await run(process.execPath,[runner,'check','--input',input],{env:{...process.env,VIDEO_PUBLISHER_V2_EGO_COMMAND:'/fixture/no-browser',PUBLISHER_VIDEO_CONFIG:path.join(dir,'video.json')}});
    assert.equal(result.code,0,result.stderr+'\n'+result.stdout);assert.equal((result.stdout.match(/内容通过/g)||[]).length,count);

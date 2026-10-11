@@ -64,7 +64,7 @@ const page=bound?task.page(bound):blank?task.page('p1'):await task.newPage();
 console.log(${JSON.stringify(PREFIX)}+JSON.stringify({taskSpaceId:task.spaceId,taskSpaceName:task.name,pageLabel:page.label}));`;
 }
 
-export async function clearCurrentEditor(page, {type, platform}) {
+export async function clearCurrentEditor(page, {type, platform, cleanup={}}) {
   if(platform==='bilibili'){
     const restore=await page.evaluate(()=>[...document.querySelectorAll('*')].some(e=>e.textContent.trim()==='不用了'&&e.getBoundingClientRect().height>0));
     if(restore)await page.click('text="不用了"');
@@ -79,35 +79,34 @@ export async function clearCurrentEditor(page, {type, platform}) {
     });
     return;
   }
-  const selectors=type==='dynamic'?{
+  const selectors=cleanup.selectors || (type==='dynamic'?{
     x:['[role="dialog"] [data-testid="tweetTextarea_0"][contenteditable="true"]'],
     weibo:['textarea[placeholder="有什么新鲜事想分享给大家？"]'],
-    jike:['[data-lexical-editor="true"][contenteditable="true"]'],
   }[platform]:type==='video'?{
     douyin:['input[placeholder*="作品标题"]','[contenteditable=true]'],
     bilibili:['input[placeholder*="稿件标题"]','.ql-editor[contenteditable=true]'],
     wechat_channels:['input[placeholder*="标题"]','[contenteditable=true]'],
     youtube:['#title-textarea #textbox','#description-textarea #textbox'],
-  }[platform]:null;
+  }[platform]:null);
   if(!selectors)throw new Error('Editor cleanup unavailable');
   for(const selector of selectors){
     if(!await page.evaluate(selector=>!!document.querySelector(selector),selector))continue;
     await page.focus(selector);await page.keyboard.press('Meta+A');await page.keyboard.press('Backspace');
   }
   for(let index=0;index<40;index++){
-    const found=await page.evaluate(({type,platform})=>{
-      const root=platform==='weibo'?document.querySelector('[class*="_publishCard_"]'):platform==='x'?document.querySelector('[role="dialog"]'):platform==='jike'?document.querySelector('[data-lexical-editor]')?.closest('form'):document.querySelector(type==='video'?'.upload-container,.upload-content,.post-content,ytcp-uploads-dialog':'.UploadPicture,.cover,.cover-preview-con');
+    const found=await page.evaluate(({type,platform,cleanup})=>{
+      const root=platform==='weibo'?document.querySelector('[class*="_publishCard_"]'):platform==='x'?document.querySelector('[role="dialog"]'):cleanup.rootSelector?document.querySelector(cleanup.rootSelector)?.closest(cleanup.closest||cleanup.rootSelector):document.querySelector(type==='video'?'.upload-container,.upload-content,.post-content,ytcp-uploads-dialog':'.UploadPicture,.cover,.cover-preview-con');
       const candidates=[...(root?.querySelectorAll('button,[role=button],[title],[aria-label],i')||[])].filter(node=>{
         if(node.getBoundingClientRect().height===0)return false;
         const label=(node.title||node.getAttribute('aria-label')||node.innerText||'').trim();
         if(node.matches('[data-testid="removeMedia"]'))return true;
         if(/^(删除|移除|删除封面|移除封面|Remove media|Remove|Delete)$/i.test(label))return true;
         const props=node[Object.keys(node).find(key=>key.startsWith('__reactProps$'))];
-        return platform==='jike'&&/removeAttachment|deleteAttachment/.test(props?.onClick?.toString()||'');
+        return !!cleanup.handlerPattern&&new RegExp(cleanup.handlerPattern).test(props?.onClick?.toString()||'');
       });
       if(!candidates.length)return false;
       candidates[0].id='publisher-clear-history';return true;
-    },{type,platform});
+    },{type,platform,cleanup});
     if(!found)return;
     await page.click('#publisher-clear-history');
   }

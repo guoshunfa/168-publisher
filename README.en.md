@@ -2,7 +2,7 @@
 
 # 168 Publisher
 
-Current version: `0.0.28`.
+Current version: `0.0.29`.
 
 A local AI Skill for developers and content creators: **prepare one set of text and assets for multiple platforms, use different accounts through Profiles, and publish manually by default or enable automatic publication for this request.**
 
@@ -18,7 +18,6 @@ A local AI Skill for developers and content creators: **prepare one set of text 
 | X | ✓ | ✓ |
 | Weibo | ✓ | ✓ |
 | Xiaohongshu | ✓ | ✓ |
-| Jike | ✓ | ✓ |
 | Douyin | ✓ | ✓ |
 | Bilibili | ✓ | ✓ |
 | WeChat Channels | ✓ | ✓ |
@@ -29,6 +28,8 @@ Images select the image workflow; a video selects the video workflow. No Type fi
 It accepts prepared content and does not create titles, copy, tags, or videos; video covers default to the first frame. Article publishing is unsupported.
 
 New image entries use Douyin image posts, Bilibili feed posts, WeChat Channels image posts and YouTube Community posts. Local file checks, simulated safety checks and read-only page inspection are complete; real uploads and publishing on these new entries remain unverified. Platform changes, account permissions or unproven upload identity pause the task on the original page.
+
+Jike image and video publishing is available in `168-publisher-pro`. The community edition does not include its adapter. Resume existing Jike requests in Pro with their original Job ID; no media migration is needed.
 
 ## Installation
 
@@ -61,12 +62,12 @@ Cover: default
 Platforms: <platform IDs separated by 、>
 ```
 
-- **Title and body:** Platforms with title fields use the shared title. Image requests on Xiaohongshu, Douyin, Bilibili and WeChat Channels use titles; YouTube posts have no separate title. X, Weibo and Jike do not use an independent title. Image text is required; use `none` for an unused video description.
-- **Cover:** For videos, `default`, an empty value, or omission extracts the first frame and uploads it to supported platform cover fields. A supplied JPEG/PNG path takes priority and skips frame extraction. Image requests do not support custom covers; X, Weibo and Jike videos also have no separate cover field.
+- **Title and body:** Platforms with title fields use the shared title. Image requests on Xiaohongshu, Douyin, Bilibili and WeChat Channels use titles; YouTube posts have no separate title. X and Weibo do not use an independent title. Image text is required; use `none` for an unused video description.
+- **Cover:** For videos, `default`, an empty value, or omission extracts the first frame and uploads it to supported platform cover fields. A supplied JPEG/PNG path takes priority and skips frame extraction. Image requests do not support custom covers; X and Weibo videos also have no separate cover field.
 - **Auto publish:** put this first. Use `yes` or `no`; omission means `no`. It applies only to the current request and is preserved on resume.
 - **Media:** one or more JPEG/PNG images select the image workflow; one MP4 / M4V / MOV selects video. Do not mix them. Actual formats and specifications are checked per platform. The standard template does not accept remote URLs.
 - **Tags:** separate names only with `、`, not spaces. Social adapter tag names cannot contain internal whitespace. Standalone Xiaohongshu, Douyin, Bilibili, and WeChat Channels videos require tags; `none` prompts you to supply them.
-- **Platforms:** use `x`, `weibo`, `xiaohongshu`, `jike`, `douyin`, `bilibili`, `wechat_channels`, or `youtube`, separated by `、`, as applicable to the content type. `all platforms` uses the unified `platforms.media` list; image requests filter out unsupported image targets.
+- **Platforms:** use `x`, `weibo`, `xiaohongshu`, `douyin`, `bilibili`, `wechat_channels`, or `youtube`, separated by `、`, as applicable to the content type. `all platforms` uses the unified `platforms.media` list; image requests filter out unsupported image targets.
 
 Append optional fields only when needed:
 

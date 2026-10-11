@@ -4,7 +4,7 @@ export function assertManualSendContent(content) {
   if (JSON.stringify(content).includes('请勿发布')) throw new Error('Test content stays protected; no real send handoff');
 }
 
-export function parseDynamicOptions(argv, platforms = ["x", "weibo", "xiaohongshu", "jike"], entry = "dynamic.mjs") {
+export function parseDynamicOptions(argv, platforms = ["x", "weibo", "xiaohongshu"], entry = "dynamic.mjs") {
   const [command, ...args] = argv;
   if (!["check", "prepare", "inspect", "handoff"].includes(command)) throw new Error(`Usage: ${entry} check|prepare|inspect|handoff --package FILE --platform ${platforms[0]}`);
   const options = { command };

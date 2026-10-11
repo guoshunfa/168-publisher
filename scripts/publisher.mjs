@@ -30,6 +30,7 @@ export function request(argv,raw,registry=entries) {
   if(!Object.hasOwn(registry,type))throw new Error('Unsupported content type in this edition: '+type);
   if(!values['--package']||!!values['--platform']===!!values['--platforms'])throw new Error('Provide --package and either --platform or --platforms');
   const selected=(values['--platform']||values['--platforms']).split(',');
+  if(selected.some(p=>registry.media?.retiredPlatforms?.includes(p)))throw new Error('Unsupported platform in community: 即刻图文与视频已移至 168-publisher-pro');
   if(new Set(selected).size!==selected.length||selected.some(p=>!registry[type].platforms.includes(p)))throw new Error('Unsupported or duplicate platform for '+type);
   if(command==='preflight'&&registry[type].actionPreparation!==true)throw new Error('Login preflight supports video and dynamic only');
   if(command==='handoff'&&!flags.has('--confirm-manual-send'))throw new Error('handoff requires explicit manual-send confirmation');
@@ -41,7 +42,10 @@ export function request(argv,raw,registry=entries) {
   if(values['--wait-timeout']&&(!/^\d+$/.test(values['--wait-timeout'])||!Number.isSafeInteger(Number(values['--wait-timeout']))||Number(values['--wait-timeout'])<1||command!=='run'))throw new Error('--wait-timeout requires positive seconds for run');
   if(['inspect','handoff'].includes(command)&&!values['--job-id'])throw new Error('Existing job-id required');
   const base=values['--job-id']||createHash('sha256').update(JSON.stringify({raw,type,selected})).digest('hex').slice(0,16);
-  const jobs=selected.map(platform=>({platform,jobId:selected.length===1?base:base+'-'+platform,...(type==='media'?{type:adapterType(raw,platform,registry),entry:registry[adapterType(raw,platform,registry)].entry}:{})}));
+  const jobs=selected.map(platform=>{
+    const resolved=type==='media'?adapterType(raw,platform,registry):type,adapter=registry[resolved].adapters?.[platform];
+    return {platform,jobId:selected.length===1?base:base+'-'+platform,...(type==='media'?{type:resolved}:{}),entry:adapter?.entry||registry[resolved].entry,...(adapter?{adapter}:{})};
+  });
   if(jobs.some(j=>!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(j.jobId)))throw new Error('Invalid or too long job-id');
   const urls=type==='media'?Object.fromEntries(jobs.map(job=>[job.platform,registry[job.type].urls[job.platform]])):registry[type].urls;
   return {command,type,entry:registry[type].entry,actionPreparation:registry[type].actionPreparation===true,urls,values,flags,jobs,base};
@@ -131,10 +135,10 @@ export function preparationLoginCheckScript(plan,session) {
     const previous=plan.previousResults?.[job.platform];
     return !plan.publications?.[job.platform]&&!(previous?.configurationComplete===true&&previous.jobId===job.jobId);
   }).map(job=>[job.platform,session.pages[job.platform]]));
-  return loginCheckScript({...session,pages});
+  return loginCheckScript({...session,pages},Object.fromEntries(plan.jobs.map(job=>[job.platform,job.adapter?.login||{}])));
 }
 
-export function reviewHandoffScript(session,{protectedContent=false}={}) {
+export function reviewHandoffScript(session,{protectedContent=false,guardKeys=[]}={}) {
   return `const session=${JSON.stringify(session)};
 const match=(await listTaskSpaces()).find(s=>Number(s.id??s.spaceId)===session.taskSpaceId&&s.name===session.name);
 if(!match||match.ownership!=='agent')throw new Error('USER_CONTROL: review handoff requires original Agent control');
@@ -143,7 +147,7 @@ for(const label of Object.values(session.pages||{})){
   const page=task.page(label);
   if(!${protectedContent})guardWarnings.push(...await page.evaluate(()=>{
     const warnings=[];
-    for(const key of ['__VIDEO_PUBLISHER_FINAL_GUARD__','__168_PUBLISHER_X__','__168_PUBLISHER_WEIBO__','__168_PUBLISHER_XHS__','__168_PUBLISHER_JIKE__','__168_PUBLISHER_IMAGE__']){
+    for(const key of ['__VIDEO_PUBLISHER_FINAL_GUARD__','__168_PUBLISHER_X__','__168_PUBLISHER_WEIBO__','__168_PUBLISHER_XHS__','__168_PUBLISHER_IMAGE__',...${JSON.stringify(guardKeys)}]){
       const guard=window[key];if(!guard?.armed)continue;
       try{const released=(guard.releaseForConfirmedPublish||guard.release)?.call(guard);if(!released?.ok)throw new Error('Guard release rejected');}
       catch{guard.armed=false;warnings.push({key,blockedAttempts:guard.blockedAttempts?.length||0});}
@@ -268,7 +272,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
     try{
       if(legacy)throw new Error('Existing legacy task requires explicit maintenance recovery');
       await preparePages();
-      const output=await ego(loginCheckScript(session));
+      const output=await ego(loginCheckScript(session,Object.fromEntries(plan.jobs.map(job=>[job.platform,job.adapter?.login||{}]))));
       const line=output.split('\n').find(line=>line.startsWith(PREFIX));if(!line)throw new Error('Login check result unknown');
       report=JSON.parse(line.slice(PREFIX.length));
     }catch(error){report={platforms:Object.fromEntries(plan.jobs.map(job=>[job.platform,{status:'needs_user',reason:String(error.message||error)}])),finalPublishClicked:false};}
@@ -318,7 +322,7 @@ export async function main(argv=process.argv.slice(2),{registry=entries,stateHom
       }
       if(Object.values(results).some(userControlled))return;
       session.handoffAttempted=true;writeJson(sessionPath,session);
-      const output=await ego(reviewHandoffScript(session,{protectedContent:plan.autoPublish||JSON.stringify(raw).includes('请勿发布')}));
+      const output=await ego(reviewHandoffScript(session,{protectedContent:plan.autoPublish||JSON.stringify(raw).includes('请勿发布'),guardKeys:plan.jobs.map(job=>job.adapter?.guardKey).filter(Boolean)}));
       const line=output.split('\n').find(line=>line.startsWith(PREFIX));
       const receipt=line&&JSON.parse(line.slice(PREFIX.length));
       if(receipt?.handedOff!==true)throw new Error('Review handoff result unknown');

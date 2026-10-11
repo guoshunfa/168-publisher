@@ -54,12 +54,12 @@ export function downloadImage(source, redirects = 0) {
     request.on("error", reject);
   });
 }
-export function normalizeDynamic(raw, directory, platform = "x", { allowIncomplete = false } = {}) {
-  if (!Object.hasOwn(DYNAMIC_RULES,platform)) throw new Error("Unsupported dynamic platform");
+export function normalizeDynamic(raw, directory, platform = "x", { allowIncomplete = false, rules = DYNAMIC_RULES, videoPlatforms = ["x","weibo","xiaohongshu"] } = {}) {
   const allowed = ["type", "text", "tags", "images", "videoPath", "platforms", ...(["xiaohongshu","douyin","bilibili","wechat_channels"].includes(platform) ? ["title"] : [])];
+  if (!Object.hasOwn(rules,platform)) throw new Error("Unsupported dynamic platform: "+platform);
   if (!raw || typeof raw !== "object" || Array.isArray(raw) || Object.keys(raw).some(key => !allowed.includes(key))) throw new Error("Unsupported dynamic fields; use text, tags, images or a supported local videoPath");
   if (raw.type !== (["douyin","bilibili","wechat_channels","youtube"].includes(platform)?"image":"dynamic")) throw new Error('type must be "dynamic"');
-  if (raw.platforms && (typeof raw.platforms !== "object" || Array.isArray(raw.platforms) || Object.keys(raw.platforms).some(key => !Object.hasOwn(DYNAMIC_RULES,key)))) throw new Error("Unsupported platform override");
+  if (raw.platforms && (typeof raw.platforms !== "object" || Array.isArray(raw.platforms) || Object.keys(raw.platforms).some(key => !Object.hasOwn(rules,key)))) throw new Error("Unsupported platform override");
   const override = raw.platforms?.[platform] ?? {};
   if (!override || typeof override !== "object" || Array.isArray(override)) throw new Error(`${platform} override must be an object`);
   if (Object.keys(override).some(key => !["text", "tags", "images", "videoPath", ...(["xiaohongshu","douyin","bilibili","wechat_channels"].includes(platform) ? ["title"] : [])].includes(key))) throw new Error(`Unsupported ${platform} override`);
@@ -71,7 +71,7 @@ export function normalizeDynamic(raw, directory, platform = "x", { allowIncomple
   const normalizedTags = tags.map(tag => tag.replace(/^#/, ""));
 
   const images = chosen.images ?? [];
-  const maxImages = DYNAMIC_RULES[platform]?.maxImages??4;
+  const maxImages = rules[platform]?.maxImages??4;
   if (!Array.isArray(images) || images.length > maxImages || images.some(source => typeof source !== "string" || !source)) throw new Error(`${platform} preparation accepts up to ${maxImages} ordered JPEG/PNG images`);
   const sources = images.map(source => {
     if (/^https?:/i.test(source)) return validateImageURL(source).href;
@@ -81,7 +81,7 @@ export function normalizeDynamic(raw, directory, platform = "x", { allowIncomple
   if (new Set(sources).size !== sources.length) throw new Error("Duplicate images");
   let videoPath;
   if (chosen.videoPath !== undefined) {
-    if (!["x","jike","weibo","xiaohongshu"].includes(platform)) throw new Error(`${platform} video dynamics are not yet implemented`);
+    if (!videoPlatforms.includes(platform)) throw new Error(`${platform} video dynamics are not yet implemented`);
     if (typeof chosen.videoPath !== "string" || !chosen.videoPath || /^[a-z][a-z0-9+.-]*:/i.test(chosen.videoPath)) throw new Error("videoPath must be a local file path");
     if (sources.length) throw new Error("Choose images or one video, not both");
     videoPath = path.resolve(directory, chosen.videoPath);
@@ -100,14 +100,14 @@ export function normalizeDynamic(raw, directory, platform = "x", { allowIncomple
   if (!text.trim() && !sources.length && !videoPath) throw new Error("Empty dynamic");
   return { type: raw.type, platform, text, ...(["douyin","bilibili","wechat_channels"].includes(platform)?{title:chosen.title??""}:{}),sources, ...(videoPath ? { videoPath } : {}) };
 }
-export async function materializeVideo(pkg, recorded) {
-  const file=pkg.videoPath,media=inspectUploadVideo(file),review=reviewMedia(pkg.platform,'dynamic','video',media,{requireDuration:pkg.platform==='jike',legacy:!!recorded});
+export async function materializeVideo(pkg, recorded, {videoRules={}}={}) {
+  const file=pkg.videoPath,media=inspectUploadVideo(file),review=reviewMedia(pkg.platform,'dynamic','video',media,{requireDuration:videoRules.requireDuration??false,ruleOverrides:videoRules,legacy:!!recorded});
   if(review.errors.length)throw new Error(review.errors.join('; '));
   const size=media.sizeBytes;
   const digest = crypto.createHash("sha256");
   for await (const chunk of fs.createReadStream(file)) digest.update(chunk);
-  const duration=pkg.platform==='jike'?media.durationSeconds:null;
-  const asset = { ...(pkg.platform==='jike'?{duration}:{}),source: file, path: file, size, sha256: digest.digest("hex"), format: "mp4", kind: "video" };
+  const duration=videoRules.requireDuration?media.durationSeconds:null;
+  const asset = { ...(videoRules.requireDuration?{duration}:{}),source: file, path: file, size, sha256: digest.digest("hex"), format: "mp4", kind: "video" };
   if (recorded && (recorded.length !== 1 || recorded[0].source !== file || recorded[0].size !== size || recorded[0].sha256 !== asset.sha256)) throw new Error("Existing draft video changed; refusing reupload");
   return [asset];
 }

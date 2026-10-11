@@ -12,7 +12,6 @@ import { parseDynamicOptions, dynamicVerdict, assertDynamicReady, existingSpaceS
 import { armGuard, observeX } from '../scripts/x-page.mjs';
 import { observeWeibo } from '../scripts/weibo-page.mjs';
 import { observeXhs, fillXhsScript } from '../scripts/xhs-page.mjs';
-import { observeJike } from '../scripts/jike-page.mjs';
 import {openDraftPageScript,clearCurrentEditor} from '../scripts/runtime.mjs';
 import {request,execute} from '../scripts/publisher.mjs';
 
@@ -28,7 +27,7 @@ test('ordered sources, overrides and unsupported fields are explicit; unsafe URL
 });
 
 test('Every dynamic platform requires user copy and one media mode before browser work', () => {
-  for (const platform of ['x', 'weibo', 'xiaohongshu', 'jike']) {
+  for (const platform of ['x', 'weibo', 'xiaohongshu']) {
     const raw = {type:'dynamic', text:'正文\n保留原文', tags:['AI', '视频生成'], images:['first.png', 'second.png']};
     const pkg = normalizeDynamic(raw, '/tmp', platform);
     assert.deepEqual(pkg.sources, ['/tmp/first.png', '/tmp/second.png']);
@@ -44,7 +43,7 @@ test('Every dynamic platform requires user copy and one media mode before browse
 });
 
 test('Original dynamic normalization remains available only for recovery identity checks', () => {
-  for (const platform of ['x', 'weibo', 'jike']) {
+  for (const platform of ['x', 'weibo']) {
     assert.equal(normalizeDynamic({type:'dynamic', text:'legacy copy'}, '/tmp', platform, {allowIncomplete:true}).text, 'legacy copy');
     assert.equal(normalizeDynamic({type:'dynamic', text:'', videoPath:'clip.mp4'}, '/tmp', platform, {allowIncomplete:true}).videoPath, '/tmp/clip.mp4');
     assert.throws(() => normalizeDynamic({type:'dynamic', text:''}, '/tmp', platform, {allowIncomplete:true}), /Empty dynamic/);
@@ -355,88 +354,6 @@ test('XHS closed publish component is protected even when shadow clicks hide the
  assert.equal(prevented,true);assert.equal(window.__168_PUBLISHER_XHS__.version,3);assert.throws(()=>window.__168_PUBLISHER_XHS__.release());
 });
 
-test('Jike input preserves inline hashtag text and supports exclusive local video',()=>{
- const raw={type:'dynamic',text:'base',tags:['软件'],images:['one.png'],platforms:{jike:{text:'即刻 🐼'}}};
- assert.equal(normalizeDynamic(raw,'/tmp','jike').text,'即刻 🐼\n\n#软件');
- assert.equal(parseDynamicOptions(['prepare','--package','a.json','--platform','jike']).platform,'jike');
- assert.equal(normalizeDynamic({...raw,images:[],videoPath:'clip.mp4'},'/tmp','jike').videoPath,'/tmp/clip.mp4');
- assert.throws(()=>normalizeDynamic({...raw,images:['x.png'],videoPath:'clip.mp4'},'/tmp','jike'));
- for(const extra of [{topic:'circle'},{title:'title'},{images:Array.from({length:10},(_,i)=>i+'.png')}]) assert.throws(()=>normalizeDynamic({...raw,...extra},'/tmp','jike'));
-});
-
-test('Jike requires mounted Lexical/form agreement, original ordered files and completed CDN receipts',async()=>{
- const file=new File(['one'],'one.png');
- for(const mode of ['ready','staleHost','uncommitted','domOnly','wrongFile','wrongPreview','pending','failed','missingId','wrongAccount','circle','pure','video-ready','video-key','video-pending','video-failed','video-bytes','video-dimensions','video-duration','rate-limit']){
-  const videoMode=mode.startsWith('video-'),pure=mode==='pure',text='hello\n\n#软件';
-  const assets=pure?[]:[{sha256:sha256('one'),size:3,...(videoMode?{duration:10}:{})}];
-  const values={content:mode==='uncommitted'?'':text,attachment:{ids:pure?[]:['1'],map:pure?{}:{'1':{file:mode==='wrongFile'?new File(['two'],'two.png'):file,type:'PICTURE',status:mode==='pending'?'UPLOADING':mode==='failed'?'FAILED':'UPLOADED',cdn:{file:{id:mode==='missingId'?'':'cdn-id',key:'key.png',fileUrl:'https://cdnv2.ruguoapp.com/key.png',success:true}}}}},topic:mode==='circle'?{id:'unconfirmed'}:undefined};
-  const video={src:'blob:image',currentSrc:'blob:image',videoWidth:mode==='video-dimensions'?2000:1280,videoHeight:720,duration:mode==='video-duration'?12:10,readyState:1,error:null,getBoundingClientRect:()=>({height:20})};
-  if(videoMode){const item=values.attachment.map['1'];item.type='VIDEO';item.metadata={width:1280,height:720};item.status=mode==='video-pending'?'UPLOADING':mode==='video-failed'?'UPLOAD_FAILED':'UPLOADED';item.cdn.file={key:mode==='video-key'?'foreign.mp4':'Fv4FvNzcSSgBJ4Gl8aKnfLtTmOEG.mp4',fileUrl:'blob:image'};if(mode==='video-bytes')item.file=new File(['two'],'clip.mp4');}
-  const image={src:'blob:image',complete:true,naturalWidth:1,getBoundingClientRect:()=>({height:20})};
-  const button={innerText:'发送',disabled:false,getAttribute:()=>null};
-  const form={parentElement:{querySelector:()=>({getAttribute:()=>'/u/user'})},querySelector:()=>button,querySelectorAll:s=>s==='img'&&!pure&&!videoMode?[image]:s==='video'&&videoMode?[video]:[]};
-  const doc={root:{children:[{type:'paragraph',children:[{type:'text',text:mode==='domOnly'?'':text}]}]}};
-  const editor={innerText:text,closest:()=>form,getBoundingClientRect:()=>({height:20}),__lexicalEditor:{getEditorState:()=>({toJSON:()=>doc})}};
-  const root={stateNode:{current:null}};
-  const provider={memoizedProps:{control:{_formValues:values,_formState:{errors:{},isSubmitting:false}},getValues:()=>values},memoizedState:{memoizedState:{data:{isLoginUser:true,id:mode==='wrongAccount'?'other':'account',username:'user'}}},return:root};
-  const input={memoizedProps:{name:'content',value:text},return:provider};
-  const mounted={stateNode:editor,return:input};root.stateNode.current=mounted;
-  editor.__reactFiber$test=mode==='staleHost'?{return:root,memoizedProps:{name:'content',value:'stale'}}:mounted;
-  const guard={version:2,armed:true,fingerprint:'id',blockedAttempts:[],files:assets.map(a=>({...a,pending:false})),blobs:{'blob:image':{sha256:mode==='wrongPreview'?'other':sha256('one')}}};
-  const context=vm.createContext({window:{__168_PUBLISHER_JIKE__:guard},File,crypto:webcrypto,Date,Uint8Array,btoa,document:{querySelectorAll:s=>s.includes('data-lexical-editor')?[editor]:s.includes('[role=status]')&&mode==='rate-limit'?[{getBoundingClientRect:()=>({height:1}),innerText:'操作过于频繁'}]:[]},getComputedStyle:()=>({visibility:'visible'}),location:{hostname:'web.okjike.com',pathname:'/following'}});
-  const observation=await vm.runInContext(`(${observeJike.toString()})(${JSON.stringify({text,assets,...(videoMode?{videoPath:'/clip.mp4'}:{}),account:'account',fingerprint:'id'})})`,context);
-  assert.equal(dynamicVerdict(observation).ready,['ready','staleHost','pure','video-ready'].includes(mode),mode);
-  if(['pending','video-pending'].includes(mode))assert.equal(dynamicVerdict(observation).status,'processing');
-  if(['failed','video-failed'].includes(mode))assert.equal(dynamicVerdict(observation).status,'failed');
- if(mode==='rate-limit'){assert.equal(dynamicVerdict(observation).status,'processing');assert.equal(dynamicVerdict(observation).waitingFor,'rate_limit');}
- }
-});
-
-test('Jike final send click, form submit and shortcut are protected',()=>{
- for(const type of ['click','submit','keydown']){
-  const listeners=new Map();class Element{constructor(){this.innerText='发送';}closest(){return this;}}
-  const window={addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)};
-  const context=vm.createContext({window,Element,URL:{createObjectURL:()=>''},crypto:webcrypto,Date,Array,Uint8Array});
-  vm.runInContext(`(${armGuard.toString()})({platform:'jike',fingerprint:'id'})`,context);
-  let stopped=false;listeners.get(type)({type,target:new Element(),key:'Enter',metaKey:true,preventDefault(){stopped=true;},stopImmediatePropagation(){}});
-  assert.equal(stopped,true);assert.throws(()=>window.__168_PUBLISHER_JIKE__.release());
- }
-});
-
-test('Jike recovery uploads once; unexpected media and platform blockers still stop',{skip:process.platform!=='darwin'},()=>{
- for(const mode of ['fresh','existing','video','blocked']){
-  const existing=mode==='existing';
-  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'168-jike-entry-'));
-  try{
-   const local=path.join(dir,'one.png');fs.writeFileSync(local,Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC1lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=','base64'));
-   const raw={type:'dynamic',text:'confirmed',images:[local]},pkg=normalizeDynamic(raw,dir,'jike');
-   const bytes=fs.readFileSync(local),assets=[{source:local,path:local,size:bytes.length,sha256:sha256(bytes),width:1,height:1,format:'png'}];
-   const packagePath=path.join(dir,'package.json');fs.writeFileSync(packagePath,JSON.stringify(raw));
-   const jobDir=path.join(dir,'jobs/job');fs.mkdirSync(jobDir,{recursive:true});
-   fs.writeFileSync(path.join(jobDir,'state.json'),JSON.stringify({jobId:'job',pkg,assets,inputFingerprint:sha256(JSON.stringify(pkg)),fingerprint:sha256(JSON.stringify({pkg,media:assets.map(a=>a.sha256)})),taskSpaceId:40,taskSpaceName:'test',uploadAttempted:false,cleanupComplete:true}));
-   const marker=path.join(dir,'uploads'),mock=path.join(dir,'ego-mock');
-   const observation={text:'confirmed',editorText:'confirmed',images:[],videos:0,files:[],videoPreviews:mode==='video'?[{media:{originalSize:5,uploadId:'foreign'}}]:[],native:{ids:existing?['foreign']:[]},account:'account',gates:{authenticated:true,account:true,composer:true,safety:true,media:false,text:true,noBlockingDialog:mode!=='blocked'}};
-   fs.writeFileSync(mock,`#!${process.execPath}\nimport fs from 'node:fs';let body='';for await(const c of process.stdin)body+=c;if(body.includes('await page.setInputFiles'))fs.appendFileSync(${JSON.stringify(marker)},'upload\\n');console.log('168_PUBLISHER_RESULT:'+${JSON.stringify(JSON.stringify(observation))});\n`,{mode:0o700});
-   const args=[fileURLToPath(new URL('../scripts/dynamic.mjs',import.meta.url)),'prepare','--package',packagePath,'--platform','jike','--job-id','job','--state-root',path.join(dir,'jobs')];
-   const env={...process.env,VIDEO_PUBLISHER_V2_EGO_COMMAND:mock,VIDEO_PUBLISHER_V2_LOCK_ROOT:path.join(dir,'locks')};
-   const first=spawnSync(process.execPath,args,{encoding:'utf8',env});
-   if(mode==='blocked'){assert.match(first.stderr,/platform blocker/);assert.equal(JSON.parse(first.stderr.trim()).status,'needs_user');assert.equal(fs.existsSync(marker),false);assert.equal(JSON.parse(fs.readFileSync(path.join(jobDir,'state.json'))).uploadAttempted,false);}
-   else if(existing||mode==='video'){assert.match(first.stderr,/Unexpected media/);assert.equal(fs.existsSync(marker),false);}
-   else{assert.equal(first.status,10,first.stderr);assert.equal(fs.readFileSync(marker,'utf8'),'upload\n');const second=spawnSync(process.execPath,args,{encoding:'utf8',env});assert.equal(second.status,10,second.stderr);assert.equal(fs.readFileSync(marker,'utf8'),'upload\n');}
-  }finally{fs.rmSync(dir,{recursive:true,force:true});}
- }
- const observation={gates:{authenticated:true,account:true,composer:true,text:true,media:true,upload:true,noBlockingDialog:false,safety:true},errors:[]};
- assert.equal(dynamicVerdict(observation).status,'needs_user');
-});
-
-test('Jike native video keys match Qiniu ETags for one block and multiple blocks without a dependency',async()=>{
- const source=observeJike.toString(),part=source.slice(source.indexOf('const videoEtag='),source.indexOf('const videoNodes='));
- const context=vm.createContext({File,guard:{},crypto:webcrypto,Uint8Array,btoa});vm.runInContext(part+'this.etag=videoEtag;',context);
- assert.equal(await context.etag(new File(['one'],'one.mp4')),'Fv4FvNzcSSgBJ4Gl8aKnfLtTmOEG');
- assert.equal(await context.etag(new File([Buffer.alloc(4*1024*1024,97),'b'],'large.mp4')),'lpVXp3RLT7YisM98iQR-0BSJTzXF');
- assert.equal(await context.etag(new File([],'empty.mp4')),'');
-});
-
 test('New platform pages reuse one space and recovered jobs keep their recorded page among siblings',async()=>{
  const tabs=[{label:'p1',url:'about:blank'}],outputs=[];let created=0;
  const task={spaceId:8,name:'shared',tabs:async()=>tabs,page:label=>({label}),newPage:async()=>{const page={label:'p'+(++created+1)};tabs.push({...page,url:'about:blank'});return page;}};
@@ -464,7 +381,7 @@ test('X first video preview may wait only with the exact current original-file r
  assert.equal(dynamicVerdict({...observation,gates:{...observation.gates,noBlockingDialog:false}},state).status,'needs_user');
  assert.equal(dynamicVerdict({...observation,errors:['Upload failed']},state).status,'failed');
  assert.equal(dynamicVerdict(observation,{...state,uploadAttempted:false}).status,'result_unknown');
- assert.equal(dynamicVerdict(observation,{...state,pkg:{...state.pkg,platform:'jike'}}).status,'result_unknown');
+ assert.equal(dynamicVerdict(observation,{...state,pkg:{...state.pkg,platform:'weibo'}}).status,'result_unknown');
  assert.equal(dynamicVerdict({...observation,gates:{...observation.gates,media:true}},state).ready,false);
  assert.equal(dynamicVerdict({...observation,images:[],videos:1,videoPreviews:[{}],gates:{...observation.gates,media:true,upload:true}},state).status,'draft_verified');
 });

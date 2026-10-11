@@ -1,6 +1,6 @@
 [简体中文](platform-rules.md)
 
-New requests infer media from images or a video. Eight platforms share one default list; all eight have image and video entries. The video/dynamic/image entry names below describe existing adapters and legacy jobs, not a user-selected content type. New Xiaohongshu videos use the video entry; X, Weibo and Jike videos use their social adapters.
+New requests infer media from images or a video. Seven platforms share one default list; all seven have image and video entries. The video/dynamic/image entry names below describe existing adapters and legacy jobs, not a user-selected content type. New Xiaohongshu videos use the video entry; X and Weibo videos use their social adapters.
 
 
 # Platform publishing rules
@@ -37,7 +37,6 @@ A minimum of “1” means at least one non-whitespace character. UTF-16 means J
 | Post / X | No separate title | Nonempty text; ordinary posts at most 280 platform-weighted units, including appended tags; each URL counts as 23. Premium long posts are unsupported. [Posts](https://help.x.com/en/using-x/how-to-post), [URL counting](https://help.x.com/en/using-twitter/how-to-tweet-a-link.html) | Optional, appended as `#tag`【program】; no separate topic ID |
 | Post / Weibo | No separate title | Nonempty text; the official ordinary web-post maximum and counting method are unverified; no fixed program character maximum | Optional, appended as closed `#tag#` text【program】 |
 | Post / Xiaohongshu | Optional, at most 20 UTF-16 units【program】 | Nonempty text, at most 1,000 UTF-16 units in stage one【conservative program limit】; after native topics are added, editor `descLength` must still be ≤1,000. Final topic entity counts require editor verification; this is not a universal official limit | Optional; select exact native topic candidates individually. Plain `#text` is not a confirmed native topic; maximum count unverified |
-| Post / Jike | No separate title | Nonempty text; official maximum/counting method unverified; no fixed program maximum | Optional, appended as ordinary `#tag` text; does not select a circle【program】 |
 
 Separate user-supplied tags with `、`, not spaces. Post tags cannot be empty, duplicated or contain internal whitespace. Platform-specific title/body overrides must come from you; otherwise your shared text is retained. Shared input must satisfy all applicable checks for all selected platforms before any upload begins.
 
@@ -55,7 +54,6 @@ The standard template accepts one local MP4 / M4V / MOV file; official format li
 | Post / X | Local MP4, ≤512,000,000 bytes (512 MB)【program】 | Verifiable, **>0 and ≤140 seconds** | [Ordinary accounts](https://help.x.com/en/using-x/x-videos) also use 140 seconds / 512 MB; larger Premium limits are unsupported. Post custom covers are unsupported |
 | Post / Weibo | Local MP4, ≤512,000,000 bytes【program】 | No program maximum duration; official web duration bounds unverified | [Official video help](https://kefu.weibo.com/faqdetail?id=21503) states 15 GB on PC and 4 GB on mobile. The tool is narrower and does not apply mobile's three-second minimum to web posts. Custom covers unsupported |
 | Post / Xiaohongshu | Local MP4, ≤512,000,000 bytes【program】; official web maximum unverified | Web minimum/maximum duration unverified | Video pixel/aspect limits and native web specifications remain unverified; post custom covers unsupported. [Sharing SDK](https://agora.xiaohongshu.com/doc/android) video rules do not establish native web limits |
-| Post / Jike | Local MP4, ≤104,857,600 bytes (100 MiB)【program】 | Verifiable **3–360 seconds**, inclusive【program】 | Editor checks long edge ≤1920 and short edge ≤1080; dimensions not read locally stay pending. The [official site](https://www.okjike.com/) does not publish complete technical limits. Post custom covers unsupported |
 
 Standard templates use the video first frame as the cover; a supplied JPEG/PNG takes priority, and advanced JSON can explicitly disable custom covers. One supplied JPEG/PNG is fitted into each required ratio using downscaling and black padding, without cropping, upscaling or modifying the original. The program then checks the resulting files and dimensions; explicit ratio-specific covers retain their existing checks. Other platforms' cover byte/pixel bounds, video codecs, bitrates, frame rates and audio limits remain unverified in current public web documentation and must not be reported as passed. Recommendations are distinct from rejection thresholds.
 
@@ -68,7 +66,6 @@ Posts require nonempty text and one media type: images or a single video, never 
 | X | 1–4 | ≤5,000,000 bytes (5 MB) | [Official photo help](https://help.x.com/en/using-x/posting-gifs-and-pictures) states 5 MB, stricter than the other entries' 5 MiB |
 | Weibo | 1–9 | ≤5 MiB | [Official photo help](https://kefu.weibo.com/faqdetail?id=12483) states <20 MB and supports GIF/JPG/PNG; the tool is narrower |
 | Xiaohongshu | 1–18 | ≤5 MiB | The [sharing SDK](https://agora.xiaohongshu.com/doc/android) count is not evidence of native web limits |
-| Jike | 1–9 | ≤5 MiB | The [official site](https://www.okjike.com/) does not publish complete image specifications |
 
 | Douyin | 1–35 | ≤5 MiB | [Native image entry](https://creator.douyin.com/creator-micro/content/upload?default-tab=3) displays 35 images and 50 MB each; the program uses JPEG/PNG ≤5 MiB. A user title is required, ≤30 UTF-16 units |
 | Bilibili | 1–9 | ≤5 MiB | [Feed composer](https://t.bilibili.com/); optional title ≤20 UTF-16 units and nonempty body. Counts and sizes are program limits; complete official web limits remain unverified |

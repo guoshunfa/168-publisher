@@ -38,7 +38,7 @@ export function renderReport(report,context,pkg){
   if(video&&coverTargets){
    lines.push(`- 默认设置：${pkg.original?'原创/自制':'非原创'}；${context.videoConfig?.declarations?.originalityPolicy==='ask_each_run'?'原创权利需本次确认':'沿用原创授权策略'}${context.scope.platforms.includes('youtube')?`；YouTube ${pkg.youtubeAudience==='made_for_kids'?'面向儿童':'非面向儿童'}、${pkg.youtubeVisibility}、${pkg.youtubePaidPromotion?'有':'无'}推广、${pkg.youtubeAlteredContent?'有':'无'}逼真合成、${pkg.youtubeLicense}、${pkg.youtubeAllowEmbedding?'允许':'禁止'}嵌入、${pkg.youtubeNotifySubscribers?'通知':'不通知'}订阅者`:''}${pkg.aiGenerated===undefined?'':`；AI 生成：${pkg.aiGenerated?'是':'否'}`}。`);
    if(context.scope.platforms.includes('xiaohongshu'))lines.push('- 单独说明：小红书视频入口不写入正文。');
-   if(context.scope.type==='media'&&context.scope.platforms.some(p=>!standalone.includes(p)))lines.push('- X、微博和即刻的视频入口不使用独立标题、自定义封面或上述视频声明。');
+   if(context.scope.type==='media'&&context.scope.platforms.some(p=>!standalone.includes(p)))lines.push('- '+context.scope.platforms.filter(p=>!standalone.includes(p)).map(name).join('、')+'的视频入口不使用独立标题、自定义封面或上述视频声明。');
   }else lines.push('- 默认设置：仅填写用户提供的正文、支持的标题及标签。');
  }
  lines.push('',`Job ID：${context.jobId}${report.taskSpaceId?'；原空间：'+report.taskSpaceId:''}`);

@@ -11,10 +11,10 @@ import {adapterPackage,adapterType} from '../scripts/media-routing.mjs';
 import {request} from '../scripts/publisher.mjs';
 
 const visible=()=>({height:30,width:80});
-test('Images route to all eight platforms; native titles, overrides and limits remain explicit',()=>{
+test('Images route to all seven community platforms; native titles, overrides and limits remain explicit',()=>{
  const input='Auto publish: no\nTitle: Native title\nBody: Original body\nTags: AI\nMedia: /tmp/a.png\nPlatforms: all platforms\nWeChat Channels Title: Channel title';
  const parsed=parseTemplate(input,{platforms:{media:entries.media.platforms}},entries);
- assert.deepEqual(parsed.errors,[]);assert.equal(parsed.platforms.length,8);
+ assert.deepEqual(parsed.errors,[]);assert.equal(parsed.platforms.length,7);
  const plan=request(['check','--package','/tmp/pkg','--platforms',parsed.platforms.join(',')],parsed.pkg);
  for(const job of plan.jobs){const pkg=adapterPackage(parsed.pkg,job.platform,job.type),value=normalizeDynamic(pkg,'/tmp',job.platform);assert.equal(value.sources[0],'/tmp/a.png');assert.equal(value.text,job.platform==='xiaohongshu'?'Original body':'Original body\n\n#AI'+(job.platform==='weibo'?'#':''));assert.equal(job.type,entries.image.platforms.includes(job.platform)?'image':'dynamic');}
  for(const platform of entries.image.platforms){
@@ -27,7 +27,7 @@ test('Images route to all eight platforms; native titles, overrides and limits r
  assert.throws(()=>normalizeDynamic({type:'image',text:'body',title:'x'.repeat(23),images:['a.png']},'/tmp','wechat_channels'),/title/);
  assert.throws(()=>normalizeDynamic({type:'image',text:'x'.repeat(1001),images:['a.png']},'/tmp','wechat_channels'),/1000/);
  assert.throws(()=>normalizeDynamic({type:'image',text:'body',images:Array.from({length:11},(_,i)=>i+'.png')},'/tmp','youtube'),/10/);
- assert.deepEqual(entries.dynamic.platforms,['x','weibo','xiaohongshu','jike'],'Historical dynamic jobs keep their original platforms');
+ assert.deepEqual(entries.dynamic.platforms,['x','weibo','xiaohongshu'],'Community social entry excludes Pro-only platforms');
 });
 
 function observed(platform,problem){

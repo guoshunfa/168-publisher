@@ -7,7 +7,6 @@ import {observeX} from './x-page.mjs';
 import {observeWeibo} from './weibo-page.mjs';
 import {observeXhs} from './xhs-page.mjs';
 import {observeImage,imageControls} from './image-page.mjs';
-import {observeJike} from './jike-page.mjs';
 import {verifyScript} from './video.mjs';
 import {requiredGates} from '../assets/vendor/video-publisher/scripts/v2/lib/model.mjs';
 import {acquireJobLock,resolvePublisherLockDirectory} from '../assets/vendor/video-publisher/scripts/v2/lib/job-lock.mjs';
@@ -34,12 +33,12 @@ export async function waitUntilReady(inspect,{timeout=1800,sleep=pause,now=Date.
   }
 }
 
-export function selectPublishButton({type,platform,guardKey,fingerprint}){
+export function selectPublishButton({type,platform,guardKey,fingerprint,publishSelector}){
   const roots=[document];
   for(let i=0;i<roots.length;i++)for(const node of roots[i].querySelectorAll('*'))if(node.shadowRoot)roots.push(node.shadowRoot);
   const visible=node=>{const rect=node.getBoundingClientRect(),style=getComputedStyle(node);return rect.width>0&&rect.height>0&&style.visibility!=='hidden'&&style.display!=='none';};
   const compact=node=>(node.innerText||node.textContent||node.getAttribute('aria-label')||'').replace(/\s+/g,' ').trim();
-  const selector=platform==='x'?'[role="dialog"] [data-testid="tweetButton"]':platform==='youtube'&&type==='video'?'ytcp-uploads-dialog #done-button':type==='dynamic'&&platform==='xiaohongshu'?'xhs-publish-btn[is-publish="true"]':platform==='jike'?'form button[type="submit"]':'button,[role="button"],.submit-add,.bili-dyn-publishing__action.launcher';
+  const selector=publishSelector || (platform==='x'?'[role="dialog"] [data-testid="tweetButton"]':platform==='youtube'&&type==='video'?'ytcp-uploads-dialog #done-button':type==='dynamic'&&platform==='xiaohongshu'?'xhs-publish-btn[is-publish="true"]':'button,[role="button"],.submit-add,.bili-dyn-publishing__action.launcher');
   const names={weibo:/^发送$/,xiaohongshu:/^(发布|发布笔记)$/,douyin:/^发布$/,bilibili:type==='image'?/^发布$/:/^立即投稿$/,wechat_channels:/^发表$/,youtube:type==='image'?/^(发布|Post)$/:null};
   let candidates=roots.flatMap(root=>[...root.querySelectorAll(selector)]).filter(visible);
   if(names[platform]&&!(type==='dynamic'&&platform==='xiaohongshu'))candidates=candidates.filter(node=>names[platform].test(compact(node)));
@@ -97,12 +96,12 @@ export function publicationFeedback(platform){
   return {success,failure,confirmation:confirmations.length===1,ambiguous:confirmations.length>1};
 }
 
-export function publicationScript(type,platform,state,statePath){
+export function publicationScript(type,platform,state,statePath,adapter={}){
   const dynamic=['dynamic','image'].includes(type);
-  const guards={x:'__168_PUBLISHER_X__',weibo:'__168_PUBLISHER_WEIBO__',xiaohongshu:'__168_PUBLISHER_XHS__',jike:'__168_PUBLISHER_JIKE__'};
+  const guards={x:'__168_PUBLISHER_X__',weibo:'__168_PUBLISHER_WEIBO__',xiaohongshu:'__168_PUBLISHER_XHS__'};
   let source;
   if(dynamic){
-    const observer={x:observeX,weibo:observeWeibo,xiaohongshu:observeXhs,jike:observeJike}[platform]||observeImage;
+    const observer=adapter.observe || {x:observeX,weibo:observeWeibo,xiaohongshu:observeXhs}[platform]||observeImage;
     source=existingSpaceScript(state)+`${type==='image'?`await page.evaluate(${imageControls.toString()},${JSON.stringify(platform)});`:''}const fresh=await page.evaluate(${observer.toString()},expected);if(Object.values(fresh.gates).some(ok=>ok!==true))throw new Error('发布前内容或上传状态改变');`;
   }else{
     const inspectors={xiaohongshu:'inspectXiaohongshu',douyin:'inspectDouyin',bilibili:'inspectBilibili',wechat_channels:'inspectWechatChannels',youtube:'inspectYoutube'};
@@ -111,7 +110,7 @@ export function publicationScript(type,platform,state,statePath){
   return source+`
 const priorFeedback=await page.evaluate(${publicationFeedback.toString()},${JSON.stringify(platform)});
 if(priorFeedback.success||priorFeedback.failure||priorFeedback.confirmation||priorFeedback.ambiguous)throw new Error('发布前存在未处理提示或确认框');
-await page.evaluate(${selectPublishButton.toString()},${JSON.stringify({type,platform,guardKey:dynamic?guards[platform]||'__168_PUBLISHER_IMAGE__':'__VIDEO_PUBLISHER_FINAL_GUARD__',fingerprint:dynamic?state.fingerprint:undefined})});
+await page.evaluate(${selectPublishButton.toString()},${JSON.stringify({type,platform,guardKey:dynamic?adapter.guardKey||guards[platform]||'__168_PUBLISHER_IMAGE__':'__VIDEO_PUBLISHER_FINAL_GUARD__',fingerprint:dynamic?state.fingerprint:undefined,publishSelector:adapter.publishSelector})});
 await (${clickPublishButton.toString()})(page,${JSON.stringify(platform)},async()=>{
   const feedback=await page.evaluate(${publicationFeedback.toString()},${JSON.stringify(platform)});
   if(feedback.success||feedback.failure||feedback.confirmation||feedback.ambiguous)throw new Error('发布状态已改变，不重试');
@@ -159,7 +158,7 @@ export async function autoPublish(plan,results,{inspect,stateRoot,raw,timeout,on
       const statePath=path.join(stateRoot,job.jobId,'state.json'),state=readJson(statePath);
       onProgress(job,'publish');
       results[job.platform]={jobId:job.jobId,...await publishOnce(file,async()=>{
-        const output=await ego(publicationScript(type,job.platform,state,statePath),lock);
+        const output=await ego(publicationScript(type,job.platform,state,statePath,job.adapter),lock);
         const line=output.split('\n').filter(line=>line.startsWith(PREFIX)).at(-1);
         if(!line)throw new Error('发布回执缺失');
         return JSON.parse(line.slice(PREFIX.length));

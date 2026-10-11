@@ -55,6 +55,7 @@ export function parseTemplate(text,settings,registry,{legacyType}={}){
  const supported=inferred?supportedMediaPlatforms(type==='video'?{videoPath:videos[0]}:{images},registry):registry[type].platforms;
  const defaults=inferred?(settings.platforms.media||[...new Set([...(settings.platforms.video||[]),...(settings.platforms.dynamic||[])])]):settings.platforms[type];
  const platforms=all?[...(defaults||[])].filter(p=>!inferred||supported.includes(p)):platformsText.split('、').map(value=>aliases[value.trim().toLowerCase()]);
+ if(platforms.some(p=>registry.media?.retiredPlatforms?.includes(p)))throw new Error('即刻图文与视频已移至 168-publisher-pro；请使用 Pro 入口');
  if(!platforms.length||platforms.some(p=>!supported.includes(p))||new Set(platforms).size!==platforms.length)throw new Error('平台：目标为空、重复或不支持当前媒体，请明确选择');
  const profileText=get('profile').trim(),profile=!profileText||/^(默认|default)$/i.test(profileText)?settings.profile:profileText;
  for(const [name,lines] of Object.entries(fields))if(!['body','media'].includes(name)&&!name.endsWith('.body')&&lines.length>1)errors.push('字段必须在一行内：'+name);
@@ -136,7 +137,10 @@ export function expandRequest(argv,{registry,stateHome,configFile}){
    writeJson(context.packagePath,pkg);writeJson(file,context);
   }else if(!context)throw new Error('未找到保存的请求；旧 JSON 任务请沿用 --package 与原参数');
   if(values['--state-root']&&path.resolve(values['--state-root'])!==context.scope.stateRoot)throw new Error('原请求的状态目录不可改变');
-  if(!registry[context.scope.type]||context.scope.platforms.some(p=>!registry[context.scope.type].platforms.includes(p)))throw new Error('保存的请求不适用于当前版本');
+  if(command!=='report'){
+   if(context.scope.platforms.some(p=>registry.media?.retiredPlatforms?.includes(p)))throw new Error('即刻图文与视频已移至 168-publisher-pro；使用 Pro 和原 Job ID 继续，原任务无需迁移');
+   if(!registry[context.scope.type]||context.scope.platforms.some(p=>!registry[context.scope.type].platforms.includes(p)))throw new Error('保存的请求不适用于当前版本');
+  }
   if(command==='run'&&context.autoPublish!==true&&!flags.includes('--resume-control'))throw new Error('确认内容后使用 --resume-control 继续原请求');
   const expanded=[command,'--package',context.packagePath,'--platforms',context.scope.platforms.join(','),'--job-id',id,'--state-root',context.scope.stateRoot,...(context.scope.profile?['--profile',context.scope.profile]:[]),...flags];
   return {argv:expanded,context,release};

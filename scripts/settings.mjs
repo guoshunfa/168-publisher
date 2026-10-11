@@ -11,13 +11,14 @@ export function configuration(file, registry) {
   if (!object(config) || Object.keys(config).length !== 3 || !['profile', 'platforms', 'waitTimeout'].every(key => Object.hasOwn(config, key))) throw new Error('Configuration requires profile, platforms and waitTimeout');
   if (typeof config.profile !== 'string' || /[\r\n\0]/.test(config.profile)) throw new Error('Configuration profile must be a single-line name or empty string');
   if (!Number.isSafeInteger(config.waitTimeout) || config.waitTimeout < 1) throw new Error('Configuration waitTimeout must be positive integer seconds');
+  const retired=registry.media?.retiredPlatforms||[];
   const legacy=registry.media&&object(config.platforms)&&!Object.hasOwn(config.platforms,'media');
   if(legacy){
     const old=Object.fromEntries(Object.entries(registry).filter(([type])=>!['media','image'].includes(type)));
     if(Object.keys(config.platforms).length!==Object.keys(old).length)throw new Error('Configuration platforms must include each supported content type');
     for(const [type,entry] of Object.entries(old)){
       const selected=config.platforms[type];
-      if(!Array.isArray(selected)||new Set(selected).size!==selected.length||selected.some(p=>!entry.platforms.includes(p)))throw new Error('Unsupported or duplicate configured platform for '+type);
+      if(!Array.isArray(selected)||new Set(selected).size!==selected.length||selected.some(p=>!entry.platforms.includes(p)&&!(type==='dynamic'&&retired.includes(p))))throw new Error('Unsupported or duplicate configured platform for '+type);
     }
     const {video,dynamic,...rest}=config.platforms;
     config={...config,platforms:{media:[...new Set([...video,...dynamic])],...rest}};
@@ -25,8 +26,9 @@ export function configuration(file, registry) {
   if (!object(config.platforms) || Object.keys(config.platforms).length !== Object.keys(supported).length) throw new Error('Configuration platforms must include each supported content type');
   for (const [type, entry] of Object.entries(supported)) {
     const selected = config.platforms[type];
-    if (!Object.hasOwn(config.platforms, type) || !Array.isArray(selected) || new Set(selected).size !== selected.length || selected.some(platform => !entry.platforms.includes(platform))) throw new Error('Unsupported or duplicate configured platform for '+type);
+    if (!Object.hasOwn(config.platforms, type) || !Array.isArray(selected) || new Set(selected).size !== selected.length || selected.some(platform => !entry.platforms.includes(platform)&&!(type==='media'&&retired.includes(platform)))) throw new Error('Unsupported or duplicate configured platform for '+type);
   }
+  if(retired.length&&Array.isArray(config.platforms.media))config={...config,platforms:{...config.platforms,media:config.platforms.media.filter(p=>!retired.includes(p))}};
   if (!saved||legacy) writeJson(file, config);
   return {configurationPath: path.resolve(file), configuration: config};
 }

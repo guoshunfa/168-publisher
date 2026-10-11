@@ -1,8 +1,10 @@
 export function armGuard(fingerprint) {
   const platform = typeof fingerprint === "object" ? fingerprint.platform : "x";
+  const customKey = typeof fingerprint === "object" ? fingerprint.guardKey : undefined;
+  if(customKey!==undefined&&!/^__168_PUBLISHER_[A-Z_]+__$/.test(customKey))throw new Error("Invalid guard key");
   if (typeof fingerprint === "object") fingerprint = fingerprint.fingerprint;
-  if (!["x", "weibo", "xiaohongshu", "jike","douyin","bilibili","wechat_channels","youtube"].includes(platform)) throw new Error("Unknown guard platform");
-  const key = {x: '__168_PUBLISHER_X__', weibo: '__168_PUBLISHER_WEIBO__', xiaohongshu: '__168_PUBLISHER_XHS__', jike: '__168_PUBLISHER_JIKE__'}[platform]||'__168_PUBLISHER_IMAGE__';
+  if (!["x", "weibo", "xiaohongshu","douyin","bilibili","wechat_channels","youtube"].includes(platform) && !/^__168_PUBLISHER_[A-Z_]+__$/.test(customKey||"")) throw new Error("Unknown guard platform");
+  const key = customKey || {x: '__168_PUBLISHER_X__', weibo: '__168_PUBLISHER_WEIBO__', xiaohongshu: '__168_PUBLISHER_XHS__'}[platform]||'__168_PUBLISHER_IMAGE__';
   const version = platform === 'xiaohongshu' ? 3 : 2;
   const old = window[key];
   if (old) {

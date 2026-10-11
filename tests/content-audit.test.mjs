@@ -76,9 +76,9 @@ test('X cached HTTPS images are subject to 5 MB after byte and fingerprint verif
  }finally{fs.rmSync(d,{recursive:true,force:true});}
 });
 
-test('Known XHS body overflow is rejected conservatively and topic/Jike dimension checks remain explicit pending fields',()=>{
+test('Known XHS body overflow is rejected conservatively and topic checks remain explicit pending fields',()=>{
  for(const [length,valid] of [[1000,true],[1001,false]]){const audit=dynamicAudit('xiaohongshu',{text:'a'.repeat(length),tags:['tag'],images:['https://example.com/image.png']},'/tmp');assert.equal(audit.fields.body.errors.length===0,valid);assert.equal(audit.fields.body.unit,'UTF-16 units');assert.equal(audit.fields.body.nativeTopicCountVerified,false);assert.ok(audit.warnings.some(w=>w.includes('entity count')));}
- const jike=dynamicAudit('jike',{text:'Body',videoPath:'/missing.mp4'},'/tmp');assert.equal(jike.media.dimensionsVerified,false);assert.equal(jike.media.maxShortEdge,1080);assert.ok(jike.warnings.some(w=>w.includes('native editor verification')));
+
 });
 
 test('Empty video and desktop YouTube thumbnail minimum width/strict 50 MB bounds are enforced',()=>{

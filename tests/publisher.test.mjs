@@ -13,8 +13,8 @@ test('Community rejects unsupported types and ambiguous selections before browse
  for(const flags of [['--platforms','x,x'],['--platform','x','--platforms','weibo'],['--platform','x','--confirm-manual-send']])assert.throws(()=>request(['run','--package','/tmp/input',...flags],{type:'dynamic'}));
 });
 
-test('All nine targets preflight, create every page, then configure in order and hand back without inspection or sleep',async()=>{
- for(const [type,selected] of Object.entries({video:['xiaohongshu','douyin','bilibili','wechat_channels','youtube'],dynamic:['x','weibo','xiaohongshu','jike']})){
+test('All eight targets preflight, create every page, then configure in order and hand back without inspection or sleep',async()=>{
+ for(const [type,selected] of Object.entries({video:['xiaohongshu','douyin','bilibili','wechat_channels','youtube'],dynamic:['x','weibo','xiaohongshu']})){
   const calls=[],progress=[],plan=options(type,selected);
   const reports=await execute(plan,async(job,phase,args)=>{calls.push(job.platform+':'+phase);if(phase==='prepare')assert.ok(args.includes('--actions-only'));return phase==='check'?checked(type,job.platform):configured();},()=>assert.fail('No background wait'),{
    beforePreparation:async()=>calls.push('all_pages_created'),afterPreparation:async()=>calls.push('handoff'),onProgress:(_r,current)=>progress.push(current),
@@ -45,7 +45,7 @@ test('Actual user takeover stops actions without reclaiming control or beginning
 
 test('Takeover in preparation error, reason or blocker stops automatic publication of earlier configured tabs',async()=>{
  for(const signal of [{error:'USER_CONTROL: user now controls'},{reason:'user-controlled space'},{blocker:{code:'USER_CONTROL',message:'Original space requires user control'}}]){
-  const plan=options('dynamic',['x','weibo','jike']);plan.autoPublish=true;
+  const plan=options('dynamic',['x','weibo','xiaohongshu']);plan.autoPublish=true;
   const calls=[];
   const reports=await execute(plan,async(job,phase)=>{
    calls.push(job.platform+':'+phase);
@@ -53,30 +53,29 @@ test('Takeover in preparation error, reason or blocker stops automatic publicati
   },undefined,{afterPreparation:()=>assert.fail('Takeover must stop before automatic inspection, publishing or handoff')});
   assert.equal(reports.x.configurationComplete,true);
   assert.equal(reports.weibo.status,'needs_user');
-  assert.equal(reports.jike.status,'not_started');
-  assert.ok(!calls.includes('jike:prepare'));
+  assert.equal(reports.xiaohongshu.status,'not_started');
+  assert.ok(!calls.includes('xiaohongshu:prepare'));
  }
 });
 
 test('Automatic recovery checks login only for unconfigured jobs and leaves filled or published pages to their observers',async()=>{
- const plan=options('dynamic',['x','weibo','xiaohongshu','jike']);plan.autoPublish=true;
+ const plan=options('dynamic',['x','weibo','xiaohongshu']);plan.autoPublish=true;
  plan.previousResults={
   x:{jobId:'case-x',configurationComplete:true},
   xiaohongshu:{jobId:'other-job',configurationComplete:true},
-  jike:{jobId:'case-jike',configurationComplete:false},
- };
+   };
  plan.publications={weibo:{status:'submitted',finalPublishClicked:true}};
- const session={name:'fixture',taskSpaceId:65,pages:{x:'p1',weibo:'p2',xiaohongshu:'p3',jike:'p4'}},checkedPages=[],output=[];
+ const session={name:'fixture',taskSpaceId:65,pages:{x:'p1',weibo:'p2',xiaohongshu:'p3'}},checkedPages=[],output=[];
  const task={name:'fixture',page:label=>{
   checkedPages.push(label);
   assert.ok(!['p1','p2'].includes(label),'Do not read filled text such as 我的安全验证经验 or a publication result as a login hint');
-  return {waitForFunction:async()=>{},evaluate:async()=>({status:label==='p4'?'needs_login':'login_checked'})};
+  return {waitForFunction:async()=>{},evaluate:async()=>({status:label==='p3'?'needs_login':'login_checked'})};
  }};
  await vm.runInNewContext('(async()=>{'+preparationLoginCheckScript(plan,session)+'})()',{taskSpace:async()=>task,console:{log:line=>output.push(line)}});
- assert.deepEqual(checkedPages,['p3','p4']);
+ assert.deepEqual(checkedPages,['p3']);
  const report=JSON.parse(output[0].split('168_PUBLISHER_RESULT:')[1]);
- assert.deepEqual(Object.keys(report.platforms),['xiaohongshu','jike']);
- assert.equal(report.platforms.jike.status,'needs_login');
+ assert.deepEqual(Object.keys(report.platforms),['xiaohongshu']);
+ assert.equal(report.platforms.xiaohongshu.status,'needs_login');
 });
 
 test('A resumed configured job keeps preparation evidence but clears old blockers before fresh automatic verification',async()=>{
@@ -104,12 +103,12 @@ test('Configured requires a successful action receipt and never implies complete
  assert.equal(compactResult('dynamic','x','prepare',result({status:'processing'})).configurationComplete,false);
 });
 
-test('Precreation binds four unique pages before any platform preparation and refuses unknown creation recovery',async()=>{
+test('Precreation binds three unique pages before any platform preparation and refuses unknown creation recovery',async()=>{
  const events=[],pages={},task={name:'fixture',tabs:async()=>[{label:'p1',url:'about:blank'}],page:label=>(pages[label]||={label}),newPage:async()=>{const label='p'+(Object.keys(pages).length+1);events.push('create:'+label);return pages[label]={label};}};
- const output=[],session={name:'fixture',taskSpaceId:65},jobs=['x','weibo','xiaohongshu','jike'].map(platform=>({platform}));
+ const output=[],session={name:'fixture',taskSpaceId:65},jobs=['x','weibo','xiaohongshu'].map(platform=>({platform}));
  await vm.runInNewContext('(async()=>{'+precreatePagesScript(session,jobs,{})+'})()', {taskSpace:async()=>task,console:{log:line=>output.push(line)}});
  const bindings=JSON.parse(output[0].split('168_PUBLISHER_RESULT:')[1]).pages;
- assert.deepEqual(Object.values(bindings),['p1','p2','p3','p4']);assert.equal(events.length,3);
+ assert.deepEqual(Object.values(bindings),['p1','p2','p3']);assert.equal(events.length,2);
  await assert.rejects(vm.runInNewContext('(async()=>{'+precreatePagesScript({...session,pageCreationAttempted:true},jobs,{})+'})()', {taskSpace:async()=>task,console:{log(){}}}),/outcome unknown/);
 });
 
